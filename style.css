@@ -891,3 +891,18 @@ img.avatar{width:42px;height:42px}
 .absence .btn{background:#fff;border-color:#F2A79E}
 .tt-abs{position:absolute;bottom:3px;right:4px;font-style:normal;font-size:13px}
 .abs-presets .who-chip{font-size:13px}
+
+/* ---------- Verrouillage ---------- */
+#lock-root{position:fixed;inset:0;z-index:300}
+.lock-screen{position:absolute;inset:0;display:grid;place-items:center;padding:20px;
+  background:linear-gradient(160deg,#BDEBE1,#A9D3F5 55%,#C9C3F2);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)}
+:root[data-theme="dark"] .lock-screen{background:linear-gradient(160deg,#123F3C,#16345A 55%,#251F45)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .lock-screen{background:linear-gradient(160deg,#123F3C,#16345A 55%,#251F45)}}
+.lock-box{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;width:min(340px,100%)}
+.lock-logo{width:44px;height:44px;border-radius:12px;margin-bottom:10px;box-shadow:0 8px 18px -8px rgba(34,71,107,.5)}
+.lock-box .profile-avatar{width:96px;height:96px;border-radius:30px;font-size:44px}
+.lock-box h2{font-size:26px;margin-top:8px}
+.lock-box .key{background:rgba(255,255,255,.65);border-color:rgba(255,255,255,.8)}
+.lock-box .key.ghost{background:none;border-color:transparent}
+.lock-box .key.bio{font-size:30px}
+.switch-line.sub{padding:10px 0 10px 18px;border-top:1px dashed var(--line)}

@@ -591,6 +591,7 @@ function startAs(m, { quiet = false } = {}) {
   syncPush();
   setTimeout(showNewsIfUpdated, 900);
   if (!quiet) toast(`Bonjour ${m.name} ${hasPhoto(m) ? '👋' : m.emoji || '👋'}`);
+  else if (lockCfg().on) showLock(); // réouverture de l'appli : on demande le code / l'empreinte
 }
 
 function switchUser() {
@@ -1182,6 +1183,7 @@ const VIEWS = {
             <button class="btn btn-sm ${tablet ? 'btn-primary' : ''}" data-action="toggle-tablet">${tablet ? 'Activé' : 'Activer'}</button></div>
           <div class="switch-line"><div><b>Demander « Qui est là ? » à chaque ouverture</b><div class="small muted">Conseillé sur la tablette de la cuisine.</div></div>
             <button class="btn btn-sm ${ls.get('kc-ask') === '1' ? 'btn-primary' : ''}" data-action="toggle-ask">${ls.get('kc-ask') === '1' ? 'Activé' : 'Activer'}</button></div>
+          ${lockSettings()}
           <div class="switch-line"><b>Thème</b><select data-action="theme">
             ${[['auto', 'Automatique'], ['light', 'Clair'], ['dark', 'Sombre']].map(([v, l]) => `<option value="${v}" ${theme === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
           <div class="switch-line"><div><b>Notifications</b><div class="small muted">Messages, agenda, validations, étoiles, lycée… même quand l’appli est fermée.</div></div>
@@ -2065,6 +2067,22 @@ const ACTIONS = {
   },
   'toggle-tablet'() { ls.set('maison-tablet', ls.get('maison-tablet') === '1' ? '0' : '1'); applyTablet(); refresh(); },
   async notif() { await Notification.requestPermission(); await syncPush(true); refresh(); },
+  'lock-key': (el) => lockKeyPress(el.dataset.k),
+  'lock-bio': () => unlockBio(false),
+  'lock-switch'() { unlock(); switchUser(); },
+  'lock-toggle'() {
+    const c = lockCfg();
+    c.on = !c.on;
+    if (c.on && c.delay === undefined) c.delay = 0;
+    setLockCfg(c); refresh();
+    toast(c.on ? '🔒 Verrouillage activé sur cet appareil' : 'Verrouillage désactivé');
+  },
+  async 'bio-toggle'() {
+    const c = lockCfg();
+    if (c.cred) { delete c.cred; setLockCfg(c); refresh(); return toast('Empreinte / Face ID désactivée'); }
+    try { c.cred = await bioRegister(); setLockCfg(c); refresh(); toast('👆 Empreinte / Face ID activée'); }
+    catch { toast('Impossible d’activer l’empreinte sur cet appareil.', true); }
+  },
   'push-test'() { notify([state.me.id], { title: '🔔 Test Kids & Co', body: 'Les notifications fonctionnent sur cet appareil 🎉', tag: 'test' }, { includeSelf: true }); toast('Notification de test envoyée…'); },
 };
 
@@ -2083,6 +2101,7 @@ document.addEventListener('change', async (e) => {
     t.value = '';
   }
   if (t.dataset.action === 'theme') { ls.set('maison-theme', t.value); applyTheme(); }
+  if (t.dataset.action === 'lock-delay') { const c = lockCfg(); c.delay = Number(t.value); setLockCfg(c); }
   if (t.dataset.action === 'qr-code-toggle') { state.qrWithCode = t.checked; refresh(); }
   if (t.form?.id === 'event-form' && t.name === 'allDay') $('#time-row').classList.toggle('hidden', t.checked);
   if (t.form?.id === 'event-form' && t.name === 'repeat') $('#until-f').classList.toggle('hidden', t.value === 'none');
@@ -2467,6 +2486,108 @@ function notifHelp(notif) {
   if (notif === 'denied') return `<div class="notif-help">Les notifications ont été refusées. Pour les réactiver : ${isIOS() ? '<b>Réglages de l’iPhone → Notifications → Kids &amp; Co</b> → Autoriser' : 'cliquez sur le <b>cadenas</b> à gauche de l’adresse → Notifications → Autoriser'}, puis rechargez l’appli.</div>`;
   return '';
 }
+
+/* ================= Verrouillage de l'appli (code secret ou empreinte / Face ID) ================= */
+// Réglage propre à chaque appareil et à chaque personne. Quand on quitte l'appli et qu'on revient
+// (après le délai choisi), un écran demande le code secret ou l'empreinte du téléphone.
+const lockKey = () => `kc-lock:${state.family?.id || ''}:${state.me?.id || ''}`;
+function lockCfg() { try { return JSON.parse(ls.get(lockKey())) || {}; } catch { return {}; } }
+function setLockCfg(c) { ls.set(lockKey(), JSON.stringify(c)); }
+const bytesToB64u = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+let hiddenAt = 0, locked = false, lockDigits = '', lockTries = 0, lockUntil = 0;
+state.bioAvail = false;
+(async () => { try { state.bioAvail = !!(window.PublicKeyCredential && await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()); } catch {} })();
+
+document.addEventListener('visibilitychange', () => {
+  const c = lockCfg();
+  if (!state.me || !c.on || isMaison(state.me)) return;
+  if (document.hidden) {
+    hiddenAt = Date.now();
+    if (!c.delay) showLock(); // « immédiatement » : on masque aussi l'écran dans le sélecteur d'applis
+  } else if (!locked && hiddenAt && Date.now() - hiddenAt >= (c.delay || 0) * 1000) showLock();
+});
+
+function lockSettings() {
+  if (!state.me || isMaison(state.me)) return '';
+  const c = lockCfg(), canPin = !!state.me.pinHash;
+  return `<div class="switch-line"><div><b>🔒 Verrouiller quand je quitte l’appli</b>
+      <div class="small muted">${canPin ? 'Au retour, il faut votre code secret' + (c.cred ? ' ou votre empreinte / Face ID' : '') + '.' : 'Créez d’abord un code secret (Modifier mon compte).'}</div></div>
+      ${canPin ? `<button class="btn btn-sm ${c.on ? 'btn-primary' : ''}" data-action="lock-toggle">${c.on ? 'Activé' : 'Activer'}</button>` : ''}</div>
+    ${c.on ? `<div class="switch-line sub"><b>Verrouiller</b><select data-action="lock-delay">
+        ${[[0, 'Immédiatement'], [60, 'Après 1 minute'], [300, 'Après 5 minutes'], [900, 'Après 15 minutes']].map(([v, l]) => `<option value="${v}" ${(c.delay || 0) === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      <div class="switch-line sub"><div><b>👆 Empreinte / Face ID</b><div class="small muted">${state.bioAvail ? 'Déverrouiller avec le capteur du téléphone.' : 'Non disponible sur cet appareil ou ce navigateur.'}</div></div>
+        ${state.bioAvail ? `<button class="btn btn-sm ${c.cred ? 'btn-primary' : ''}" data-action="bio-toggle">${c.cred ? 'Activée' : 'Activer'}</button>` : ''}</div>` : ''}`;
+}
+
+async function bioRegister() {
+  const cred = await navigator.credentials.create({ publicKey: {
+    challenge: crypto.getRandomValues(new Uint8Array(32)),
+    rp: { name: 'Kids & Co', id: location.hostname },
+    user: { id: new TextEncoder().encode(state.me.id), name: fullName(state.me), displayName: fullName(state.me) },
+    pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
+    authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'discouraged' },
+    timeout: 60000,
+  } });
+  return bytesToB64u(cred.rawId);
+}
+async function bioCheck(id) {
+  const res = await navigator.credentials.get({ publicKey: {
+    challenge: crypto.getRandomValues(new Uint8Array(32)), rpId: location.hostname,
+    allowCredentials: [{ type: 'public-key', id: b64uToBytes(id) }], userVerification: 'required', timeout: 60000,
+  } });
+  return !!res;
+}
+
+function showLock() {
+  if (!state.me || locked) return;
+  locked = true; lockDigits = '';
+  const m = state.me, c = lockCfg();
+  let root = document.getElementById('lock-root');
+  if (!root) { root = document.createElement('div'); root.id = 'lock-root'; document.body.append(root); }
+  root.innerHTML = `<div class="lock-screen"><div class="lock-box">
+    <img src="logo.png" alt="" class="lock-logo">
+    <span class="profile-avatar${hasPhoto(m) ? ` photo ph-${cssId(m.id)}` : ''}" style="--c:${esc(m.color)}">${faceText(m)}</span>
+    <h2>${esc(m.name)}</h2><p class="muted" id="lock-sub">🔒 Appli verrouillée — tapez votre code</p>
+    <div class="pin-dots" id="lock-dots">${'<span class="pin-dot"></span>'.repeat(4)}</div>
+    <div class="keypad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map((k) => `<button class="key" data-action="lock-key" data-k="${k}">${k}</button>`).join('')}
+      ${c.cred ? '<button class="key ghost bio" data-action="lock-bio" aria-label="Empreinte / Face ID">👆</button>' : '<span></span>'}
+      <button class="key" data-action="lock-key" data-k="0">0</button>
+      <button class="key ghost" data-action="lock-key" data-k="del" aria-label="Effacer">⌫</button></div>
+    <button class="link" data-action="lock-switch">Ce n’est pas moi — changer d’utilisateur</button>
+  </div></div>`;
+  if (c.cred && !document.hidden) setTimeout(() => unlockBio(true), 350);
+}
+function unlock() {
+  locked = false; lockTries = 0;
+  document.getElementById('lock-root')?.remove();
+  hiddenAt = 0;
+}
+async function unlockBio(auto = false) {
+  const c = lockCfg();
+  if (!c.cred || !locked) return;
+  try { if (await bioCheck(c.cred)) unlock(); }
+  catch { if (!auto) { const sub = $('#lock-sub'); if (sub) sub.textContent = 'Empreinte non reconnue — utilisez votre code'; } }
+}
+async function lockKeyPress(k) {
+  if (!locked || Date.now() < lockUntil) return;
+  if (k === 'del') lockDigits = lockDigits.slice(0, -1);
+  else if (lockDigits.length < 4) lockDigits += k;
+  $('#lock-dots')?.querySelectorAll('.pin-dot').forEach((d, i) => d.classList.toggle('on', i < lockDigits.length));
+  if (lockDigits.length < 4) return;
+  const ok = (await hashPin(lockDigits, state.me.id)) === state.me.pinHash;
+  lockDigits = '';
+  if (ok) return unlock();
+  const box = $('.lock-box');
+  box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake');
+  $('#lock-dots').querySelectorAll('.pin-dot').forEach((d) => d.classList.remove('on'));
+  if (++lockTries >= 5) { lockTries = 0; lockUntil = Date.now() + 30000; $('#lock-sub').textContent = 'Trop d’essais : attendez 30 secondes.'; }
+  else $('#lock-sub').textContent = 'Code incorrect, réessayez.';
+}
+document.addEventListener('keydown', (e) => {
+  if (!locked) return;
+  if (/^[0-9]$/.test(e.key)) { e.preventDefault(); e.stopImmediatePropagation(); lockKeyPress(e.key); }
+  else if (e.key === 'Backspace') { e.preventDefault(); e.stopImmediatePropagation(); lockKeyPress('del'); }
+}, true);
 
 (async function boot() {
   // Ouverture via le QR code (?famille=CODE) : on garde le code pour l'écran de connexion.

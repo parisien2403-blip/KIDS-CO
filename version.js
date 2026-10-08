@@ -2,6 +2,13 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '2.8', date: '2026-10-09', title: '🔒 Verrouillage par code ou empreinte',
+    items: [
+      'Réglages → « Verrouiller quand je quitte l’appli » : au retour, code secret ou empreinte / Face ID',
+      'Délai au choix : immédiatement, 1, 5 ou 15 minutes ; réglage propre à chaque téléphone',
+    ],
+  },
+  {
     version: '2.7', date: '2026-10-09', title: 'Prof absent sur une période',
     items: [
       'Bouton « 🚫 Prof absent » sur chaque cours : ce jour-là, la semaine, 2 semaines, des dates précises ou jusqu’à nouvel ordre',
