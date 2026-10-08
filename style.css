@@ -813,3 +813,9 @@ img.avatar{width:42px;height:42px}
 .settings .idcard-body{padding:10px 0}
 .settings .idcard-top small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .settings .idcard-top>div{min-width:0}
+
+/* ---------- Code secret : afficher / masquer ---------- */
+.pin-wrap{position:relative;display:block}
+.pin-wrap input{padding-right:52px}
+.eye{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:none;font-size:20px;padding:6px;line-height:1;opacity:.7}
+.eye:hover{opacity:1}

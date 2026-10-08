@@ -442,7 +442,8 @@ function welcomeHtml({ linked, people = [], remember = true }) {
       ${linked ? '' : `<label class="field"><span>Code famille</span><input type="text" id="w-family" name="family" maxlength="8" autocapitalize="characters" spellcheck="false" placeholder="ABCD2345" class="code-input">
         <small class="muted">Il s’affiche dans Réglages → La famille, sur un appareil déjà connecté.</small></label>`}
       <label class="field"><span>Prénom</span><input type="text" id="w-name" name="firstname" maxlength="40" placeholder="Ex. Julie" autocomplete="given-name"></label>
-      <label class="field"><span>Code secret</span><input type="password" id="w-code" name="pin" inputmode="numeric" maxlength="4" placeholder="••••" class="pin-input" autocomplete="current-password"></label>
+      <label class="field"><span>Code secret</span><span class="pin-wrap"><input type="password" id="w-code" name="pin" inputmode="numeric" maxlength="4" placeholder="••••" class="pin-input" autocomplete="off">
+        <button type="button" class="eye" data-action="toggle-eye" aria-label="Afficher le code">👁️</button></span></label>
       <label class="check-line"><input type="checkbox" id="w-remember" ${remember ? 'checked' : ''}> Rester connecté sur cet appareil</label>
       <div class="error" id="w-error"></div>
       <button class="btn btn-primary btn-lg" style="width:100%">Se connecter</button>
@@ -453,7 +454,7 @@ function welcomeHtml({ linked, people = [], remember = true }) {
       ${people.map((m) => `<button class="face ${presenceOf(m.id).online ? 'online' : ''}" style="--c:${esc(m.color)}" data-action="pick-face" data-id="${esc(m.id)}" title="${esc(presenceText(presenceOf(m.id)))}">
         <span class="profile-avatar${hasPhoto(m) ? ` photo ph-${cssId(m.id)}` : ''}">${faceText(m)}</span><span>${esc(m.name)}</span></button>`).join('')}</div></div>` : ''}
     <div class="welcome-links">
-      ${linked ? '<button class="link" data-action="add-member-start">＋ Nouveau membre</button>' : ''}
+      ${linked ? '<button class="link" data-action="forgot-pin">🔑 Code secret oublié ?</button><button class="link" data-action="add-member-start">＋ Nouveau membre</button>' : ''}
       ${cloud ? (linked ? '<button class="link" data-action="logout">Déconnecter cet appareil</button>'
         : '<button class="link" data-action="email-login">Se connecter avec l’e-mail de la famille</button><button class="link" data-action="email-signup">Nouvelle famille ? Créer notre compte</button>')
         : '<span class="small muted">Mode démo : les données restent sur cet appareil</span>'}
@@ -670,8 +671,10 @@ function openMemberModal(m, { first = false, role } = {}) {
         ${EMOJIS.map((e) => `<button type="button" class="emoji-opt ${m.emoji === e ? 'on' : ''}" data-action="pick-emoji" data-emoji="${e}">${e}</button>`).join('')}</div></details>
     <div class="field"><span>Couleur</span>${colorPicker(m.color)}</div>
     <label class="field"><span>Code secret (4 chiffres${first ? ', conseillé pour un parent' : ', facultatif'})</span>
-      <input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="new-password"
-        placeholder="${m.pinHash ? '•••• (laisser vide pour garder le code actuel)' : 'Ex. 2580'}"></label>
+      <span class="pin-wrap"><input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="off"
+        placeholder="${m.pinHash ? '•••• (laisser vide pour garder le code actuel)' : 'Ex. 2580'}"><button type="button" class="eye" data-action="toggle-eye" aria-label="Afficher le code">👁️</button></span></label>
+    <label class="field"><span>Confirmer le code secret</span><span class="pin-wrap"><input type="password" name="pin2" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="Retapez le même code">
+      <button type="button" class="eye" data-action="toggle-eye" aria-label="Afficher le code">👁️</button></span></label>
     ${m.pinHash ? '<label class="check-line"><input type="checkbox" name="nopin"> Supprimer le code secret</label>' : ''}
     <div class="error"></div>
     <div class="modal-actions">${!isNew && meParent && m.id !== state.me?.id ? `<button type="button" class="btn btn-danger" data-action="delete-member">${ICON.trash} Retirer</button>` : ''}
@@ -708,6 +711,7 @@ async function submitMember(form) {
   const lastName = role === 'maison' ? '' : String(fd.get('lastName') || '').trim();
   if (!name) return;
   if (pinVal && !/^\d{4}$/.test(pinVal)) { errEl.textContent = 'Le code secret doit faire exactement 4 chiffres.'; return; }
+  if (pinVal && pinVal !== String(fd.get('pin2') || '')) { errEl.textContent = 'Les deux codes ne sont pas identiques. Retapez-les.'; return; }
   if (old && isParent(old) && role !== 'parent' && state.members.filter(isParent).length === 1) {
     errEl.textContent = 'Il faut garder au moins un parent dans la famille.'; return;
   }
@@ -770,6 +774,7 @@ let cardDone = null;
 /* ================= Démarrage ================= */
 async function enter(user) {
   if (state.joining) { state.user = user; return; } // connexion d'un nouvel appareil en cours
+  if (user && user.uid === state.reauthUid && state.family) { state.user = user; return; } // simple vérification « code oublié »
   stopSubs();
   state.user = user;
   state.me = null;
@@ -1705,6 +1710,12 @@ const ACTIONS = {
   },
   'switch-user': () => switchUser(),
   'login-maison': () => submitWelcome(true),
+  'forgot-pin': () => openForgotPin(),
+  'toggle-eye'(el) {
+    const input = el.parentElement.querySelector('input');
+    input.type = input.type === 'password' ? 'text' : 'password';
+    el.textContent = input.type === 'password' ? '👁️' : '🙈';
+  },
   'pick-face'(el) {
     const m = state.members.find((x) => x.id === el.dataset.id);
     if (!m) return;
@@ -1928,6 +1939,7 @@ document.addEventListener('submit', async (e) => {
   } else if (f.id === 'setup-form') submitSetup(f);
   else if (f.id === 'event-form') submitEvent(f);
   else if (f.id === 'compose-form') submitCompose(f);
+  else if (f.id === 'forgot-form') submitForgot(f);
   else if (f.id === 'missions-form') {
     const tasks = [...new Set([...f.querySelectorAll('#task-edit input')].map((i) => i.value.trim()).filter(Boolean))];
     save(backend.update('membres', f.dataset.id, { missionTasks: tasks.length ? tasks : DEFAULT_TASKS, missions: f.active.checked }));
@@ -2109,6 +2121,55 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) chec
 async function doUpdate() {
   try { const reg = await navigator.serviceWorker?.getRegistration(); await reg?.update(); } catch {}
   location.reload();
+}
+
+/* ================= Code secret oublié ================= */
+// On prouve qu'on est de la famille avec l'e-mail et le mot de passe du compte famille, puis on choisit un nouveau code.
+function openForgotPin() {
+  // Personnes d'abord (Maison en dernier), et présélection du prénom déjà tapé.
+  const people = [...state.members.filter((m) => !isMaison(m)), ...state.members.filter(isMaison)];
+  const typed = norm($('#w-name')?.value), pre = people.find((m) => typed && (norm(m.name) === typed || norm(fullName(m)) === typed));
+  const cloud = backend.mode === 'cloud';
+  $('#modal-root').innerHTML = `<div class="modal-backdrop" data-action="close-modal"><form class="modal" id="forgot-form">
+    <h2 style="margin-bottom:6px">🔑 Code secret oublié</h2>
+    <p class="muted small" style="margin:0 0 16px">${cloud ? 'Pour des raisons de sécurité, confirmez avec l’e-mail et le mot de passe du compte famille (celui créé au tout début).' : 'Choisissez le compte et un nouveau code.'}</p>
+    <label class="field"><span>Pour quel compte ?</span><select name="member">${people.map((m) => `<option value="${esc(m.id)}" ${pre?.id === m.id ? 'selected' : ''}>${esc(isMaison(m) ? '🏠 Maison' : fullName(m))}</option>`).join('')}</select></label>
+    ${cloud ? `<label class="field"><span>E-mail du compte famille</span><input type="email" name="email" autocomplete="username" required></label>
+      <label class="field"><span>Mot de passe du compte famille</span><input type="password" name="password" autocomplete="current-password" required></label>` : ''}
+    <div class="row"><label class="field"><span>Nouveau code (4 chiffres)</span><input type="text" name="pin" inputmode="numeric" maxlength="4" autocomplete="off" class="pin-input" required></label>
+      <label class="field"><span>Confirmer</span><input type="text" name="pin2" inputmode="numeric" maxlength="4" autocomplete="off" class="pin-input" required></label></div>
+    <div class="error"></div>
+    <div class="modal-actions"><span class="grow"></span><button type="button" class="btn" data-action="close-modal-btn">Annuler</button><button class="btn btn-primary">Changer le code</button></div>
+  </form></div>`;
+}
+async function submitForgot(f) {
+  const err = f.querySelector('.error'), btn = f.querySelector('.btn-primary'), pin = f.pin.value.trim(), id = f.member.value;
+  if (!/^\d{4}$/.test(pin)) { err.textContent = 'Le code doit faire exactement 4 chiffres.'; return; }
+  if (pin !== f.pin2.value.trim()) { err.textContent = 'Les deux codes ne sont pas identiques.'; return; }
+  btn.disabled = true; err.textContent = '';
+  try {
+    if (backend.mode === 'cloud') {
+      state.joining = true; // la vérification change de session : on ne redessine pas tout
+      try {
+        const cred = await backend.signIn(f.email.value.trim(), f.password.value);
+        state.reauthUid = cred.user.uid;
+        state.user = { uid: cred.user.uid, email: cred.user.email };
+      }
+      catch (e) { throw new Error(AUTH_ERRORS[e.code] || 'E-mail ou mot de passe incorrect.'); }
+      finally { state.joining = false; }
+      const prof = await backend.getProfile(state.user.uid);
+      if (prof?.familyId !== state.family.id) throw new Error('Ce compte n’appartient pas à cette famille.');
+    }
+    const pinHash = await hashPin(pin, id);
+    await save(backend.update('membres', id, { pinHash }));
+    const m = state.members.find((x) => x.id === id);
+    if (m) m.pinHash = pinHash;
+    closeModal();
+    toast('Nouveau code enregistré 🔑');
+    if (m) loginOk(m, ls.get('kc-ask') !== '1');
+  } catch (e) {
+    err.textContent = e.message; btn.disabled = false;
+  }
 }
 
 (async function boot() {

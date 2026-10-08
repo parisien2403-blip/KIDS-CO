@@ -2,6 +2,14 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '2.2', date: '2026-10-09', title: 'Code secret : oubli, confirmation et affichage',
+    items: [
+      '« 🔑 Code secret oublié ? » sur la page d’accueil : nouveau code avec l’e-mail et le mot de passe du compte famille',
+      'Le code secret se tape deux fois à la création (plus de faute de frappe)',
+      'Bouton 👁️ pour voir les chiffres pendant qu’on tape',
+    ],
+  },
+  {
     version: '2.1.2', date: '2026-10-08', title: 'Connexion Maison par le prénom',
     items: ['On peut aussi taper « Maison » comme prénom, avec son code secret, puis « Se connecter »'],
   },
