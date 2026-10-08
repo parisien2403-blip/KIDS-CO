@@ -43,7 +43,19 @@ const cssId = (id) => String(id).replace(/[^A-Za-z0-9_-]/g, '');
 const hasPhoto = (m) => !!(m && m.photo && PHOTO_RE.test(m.photo));
 const faceText = (m) => (hasPhoto(m) ? '' : esc(m.emoji || (isMaison(m) ? '🏠' : initial(m.name))));
 const faceClass = (m) => (hasPhoto(m) ? ` photo ph-${cssId(m.id)}` : m.emoji || isMaison(m) ? ' emo' : '');
-const REPEATS = { none: 'Jamais', weekly: 'Chaque semaine', monthly: 'Chaque mois', yearly: 'Chaque année' };
+const REPEATS = {
+  none: 'Jamais (une seule fois)', daily: 'Tous les jours', weekdays: 'Du lundi au vendredi', weekly: 'Chaque semaine',
+  biweekly: 'Toutes les 2 semaines', monthly: 'Chaque mois', yearly: 'Chaque année',
+};
+const IMPORTANCE = [
+  { v: 0, label: 'Normal', short: '' },
+  { v: 1, label: '❗ Important', short: '❗ Important' },
+  { v: 2, label: '🔴 Urgent', short: '🔴 Urgent' },
+];
+const ALERT_OFFSETS = [
+  [0, 'À l’heure prévue'], [5, '5 min avant'], [15, '15 min avant'], [30, '30 min avant'], [60, '1 h avant'],
+  [120, '2 h avant'], [1440, 'La veille (même heure)'], [2880, '2 jours avant'], ['custom', 'Date et heure précises…'],
+];
 const DOW = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 
 const ICON = {
@@ -194,13 +206,23 @@ function fmtWhen(ts) {
 function occurrences(ev, from, to) {
   if (!ev.date) return [];
   const rep = ev.repeat || 'none';
+  if (ev.until && ev.until < to) to = ev.until; // « Jusqu'au »
   if (rep === 'none') return ev.date >= from && ev.date <= to ? [ev.date] : [];
+  if (to < from) return [];
   const start = parseYmd(ev.date), f = parseYmd(from), t = parseYmd(to), out = [];
   if (start > t) return out;
-  if (rep === 'weekly') {
+  if (rep === 'daily' || rep === 'weekdays') {
+    for (let d = start < f ? new Date(f) : new Date(start); d <= t; d = addDays(d, 1)) {
+      if (rep === 'weekdays' && (d.getDay() === 0 || d.getDay() === 6)) continue;
+      out.push(ymd(d));
+    }
+    return out;
+  }
+  if (rep === 'weekly' || rep === 'biweekly') {
+    const step = rep === 'weekly' ? 7 : 14;
     let d = new Date(start);
-    if (d < f) d = addDays(d, Math.floor((f - d) / (7 * 864e5)) * 7);
-    for (; d <= t; d = addDays(d, 7)) if (d >= f) out.push(ymd(d));
+    if (d < f) d = addDays(d, Math.floor(Math.round((f - d) / 864e5) / step) * step);
+    for (; d <= t; d = addDays(d, step)) if (d >= f) out.push(ymd(d));
     return out;
   }
   const sy = start.getFullYear(), sm = start.getMonth(), sd = start.getDate();
@@ -259,10 +281,12 @@ const colorPicker = (current) => `<div class="colors">${COLORS.map((c) =>
   `<button type="button" class="color-dot ${c === current ? 'on' : ''}" style="--c:${c}" data-action="pick-color" data-color="${c}" aria-label="Couleur"></button>`).join('')}</div>`;
 
 function evItem(ev, withDate) {
-  const meta = [CATEGORIES[ev.category] || '', withDate ? fmtLong(parseYmd(withDate)) : '', ev.notes ? '📝' : ''].filter(Boolean).join(' · ');
-  return `<button class="ev" style="--c:${esc(evColor(ev))}" data-action="edit-event" data-id="${esc(ev.id)}">
+  const meta = [CATEGORIES[ev.category] || '', withDate ? fmtLong(parseYmd(withDate)) : '', ev.repeat && ev.repeat !== 'none' ? '🔁' : '',
+    ev.alert?.on ? '🔔' : '', ev.notes ? '📝' : ''].filter(Boolean).join(' · ');
+  const imp = IMPORTANCE[ev.importance || 0];
+  return `<button class="ev imp${ev.importance || 0}" style="--c:${esc(evColor(ev))}" data-action="edit-event" data-id="${esc(ev.id)}">
     <span class="ev-time">${ev.allDay || !ev.time ? '<span class="ev-allday">Journée</span>' : `${esc(ev.time)}${ev.end ? `<small>${esc(ev.end)}</small>` : ''}`}</span>
-    <span class="ev-body"><span class="ev-title">${esc(ev.title)}</span>${meta ? `<div class="ev-meta">${esc(meta)}</div>` : ''}</span>
+    <span class="ev-body"><span class="ev-title">${imp.short ? `<span class="imp-tag">${imp.short}</span>` : ''}${esc(ev.title)}</span>${meta ? `<div class="ev-meta">${esc(meta)}</div>` : ''}</span>
     ${avatars(ev.who)}
   </button>`;
 }
@@ -577,7 +601,7 @@ async function enter(user) {
   renderWho();
   unsubs.push(
     backend.subscribe('membres', onMembers),
-    backend.subscribe('events', (list) => { state.events = list; refresh(); }),
+    backend.subscribe('events', (list) => { state.events = list; refresh(); checkAlerts(); }),
     backend.subscribe('notes', (list) => { state.notes = list; refresh(); }),
     backend.subscribe('messages', onMessages, { limit: 300 }),
   );
@@ -722,9 +746,9 @@ const VIEWS = {
       const k = ymd(d), list = map[k] || [];
       return `<button class="cal-day ${d.getMonth() !== m.getMonth() ? 'out' : ''} ${k === t ? 'today' : ''} ${k === sel ? 'sel' : ''}" data-action="select-day" data-date="${k}">
         <span class="num">${d.getDate()}</span>
-        ${list.slice(0, 3).map((ev) => `<span class="chip" style="--c:${esc(evColor(ev))}">${ev.allDay || !ev.time ? '' : esc(ev.time) + ' '}${esc(ev.title)}</span>`).join('')}
+        ${list.slice(0, 3).map((ev) => `<span class="chip imp${ev.importance || 0}" style="--c:${esc(evColor(ev))}">${ev.allDay || !ev.time ? '' : esc(ev.time) + ' '}${esc(ev.title)}</span>`).join('')}
         ${list.length > 3 ? `<span class="more">+${list.length - 3}</span>` : ''}
-        ${list.length ? `<span class="dots">${list.slice(0, 4).map((ev) => `<span class="dot" style="--c:${esc(evColor(ev))}"></span>`).join('')}</span>` : ''}
+        ${list.length ? `<span class="dots">${list.slice(0, 4).map((ev) => `<span class="dot imp${ev.importance || 0}" style="--c:${esc(evColor(ev))}"></span>`).join('')}</span>` : ''}
       </button>`;
     }).join('');
     return `<div class="view-head"><div><div class="eyebrow">Le planning de la famille</div><h1>Agenda</h1></div>
@@ -734,7 +758,8 @@ const VIEWS = {
           <button class="btn btn-sm" data-action="month" data-delta="0">Aujourd’hui</button></div>
         <button class="btn btn-primary" data-action="new-event" data-date="${sel}">${ICON.plus} Ajouter</button></div>
       <div class="agenda">
-        <div class="cal">${DOW.map((d) => `<div class="cal-dow">${d}</div>`).join('')}${cells}</div>
+        <div><div class="cal">${DOW.map((d) => `<div class="cal-dow">${d}</div>`).join('')}${cells}</div>
+          <div class="legend"><span><i class="lg imp1"></i>Important</span><span><i class="lg imp2"></i>Urgent</span><span>🔁 Répété</span><span>🔔 Alerte</span></div></div>
         <section class="card day-panel"><div class="card-head"><h2>${esc(fmtLong(parseYmd(sel)))}</h2>
           <button class="btn btn-icon" data-action="new-event" data-date="${sel}" aria-label="Ajouter ce jour">${ICON.plus}</button></div>
           <div class="list">${selEvents.map((ev) => evItem(ev)).join('') || '<div class="empty">Rien de prévu ce jour-là.</div>'}</div></section>
@@ -882,37 +907,65 @@ function noteItem(n) {
 /* ================= Fenêtre rendez-vous ================= */
 function openEventModal(ev, date) {
   const isNew = !ev;
-  ev = ev || { title: '', date: date || todayStr(), time: '', end: '', allDay: false, category: 'rdv', repeat: 'none', who: [], notes: '' };
+  ev = ev || { title: '', date: date || todayStr(), time: '', end: '', allDay: false, category: 'rdv', repeat: 'none', who: [], notes: '', importance: 0 };
   const who = new Set(ev.who || []);
-  $('#modal-root').innerHTML = `<div class="modal-backdrop" data-action="close-modal"><form class="modal" id="event-form" data-id="${esc(ev.id || '')}">
-    <h2 style="margin-bottom:16px;font-size:20px">${isNew ? 'Nouveau rendez-vous' : 'Modifier'}</h2>
+  const al = ev.alert || {};
+  const alTo = new Set(al.to && al.to.length ? al.to : [state.me.id]);
+  const offset = al.at ? 'custom' : al.offset ?? 15;
+  $('#modal-root').innerHTML = `<div class="modal-backdrop" data-action="close-modal"><form class="modal" id="event-form" data-id="${esc(ev.id || '')}" data-imp="${ev.importance || 0}">
+    <h2 style="margin-bottom:16px">${isNew ? 'Ajouter au planning' : 'Modifier'}</h2>
     <label class="field"><span>Quoi ?</span><input type="text" name="title" value="${esc(ev.title)}" placeholder="Dentiste, réunion d’école, anniversaire de Mamie…" maxlength="100" required></label>
-    <div class="row"><label class="field"><span>Date</span><input type="date" name="date" value="${esc(ev.date)}" required></label>
-      <label class="field"><span>Catégorie</span><select name="category">${Object.entries(CATEGORIES).map(([k, l]) => `<option value="${k}" ${ev.category === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
+    <div class="row"><label class="field"><span>Catégorie</span><select name="category">${Object.entries(CATEGORIES).map(([k, l]) => `<option value="${k}" ${ev.category === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label class="field"><span>Date</span><input type="date" name="date" value="${esc(ev.date)}" required></label></div>
     <label class="check-line"><input type="checkbox" name="allDay" ${ev.allDay ? 'checked' : ''}> Toute la journée</label>
     <div class="row ${ev.allDay ? 'hidden' : ''}" id="time-row"><label class="field"><span>Début</span><input type="time" name="time" value="${esc(ev.time)}"></label>
       <label class="field"><span>Fin (facultatif)</span><input type="time" name="end" value="${esc(ev.end)}"></label></div>
-    <label class="field"><span>Répéter</span><select name="repeat">${Object.entries(REPEATS).map(([k, l]) => `<option value="${k}" ${ev.repeat === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+    <div class="field"><span>Niveau d’importance</span><div class="seg imp-seg" style="margin:0">
+      ${IMPORTANCE.map((i) => `<button type="button" class="imp-btn imp${i.v} ${(ev.importance || 0) === i.v ? 'on' : ''}" data-action="pick-imp" data-v="${i.v}">${i.label}</button>`).join('')}</div></div>
+    <div class="row"><label class="field"><span>Répéter</span><select name="repeat">${Object.entries(REPEATS).map(([k, l]) => `<option value="${k}" ${(ev.repeat || 'none') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label class="field ${(ev.repeat || 'none') === 'none' ? 'hidden' : ''}" id="until-f"><span>Jusqu’au (facultatif)</span><input type="date" name="until" value="${esc(ev.until || '')}"></label></div>
     <div class="field"><span>Qui est concerné ? (personne = toute la famille)</span><div class="who">
       ${state.members.filter((m) => !isMaison(m)).map((m) => `<button type="button" class="who-chip ${who.has(m.id) ? 'on' : ''}" style="--c:${esc(m.color)}" data-action="toggle-who" data-id="${esc(m.id)}">${esc(m.name)}</button>`).join('')}</div></div>
+    <div class="alert-box ${al.on ? 'on' : ''}">
+      <label class="check-line" style="margin:0"><input type="checkbox" name="alertOn" ${al.on ? 'checked' : ''}> 🔔 <b>Alerte</b> <span class="small muted">— recevoir un rappel</span></label>
+      <div class="alert-opts ${al.on ? '' : 'hidden'}">
+        <div class="row" style="margin-top:12px"><label class="field"><span>Quand ?</span><select name="alertOffset">
+          ${ALERT_OFFSETS.map(([v, l]) => `<option value="${v}" ${String(offset) === String(v) ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+          <label class="field ${offset === 'custom' ? '' : 'hidden'}" id="alert-at-f"><span>Le</span><input type="datetime-local" name="alertAt" value="${esc(al.at || '')}"></label></div>
+        <div class="field" style="margin-bottom:0"><span>Qui reçoit le rappel ?</span><div class="who">
+          ${state.members.map((m) => `<button type="button" class="who-chip alert-to ${alTo.has(m.id) ? 'on' : ''}" style="--c:${esc(m.color)}" data-action="toggle-who" data-id="${esc(m.id)}">${avatar(m)} ${esc(m.name)}</button>`).join('')}</div></div>
+        <p class="small muted" style="margin:10px 0 0">Le rappel sonne et s’affiche sur les appareils où ces personnes sont connectées (téléphone, tablette Maison…).</p>
+      </div>
+    </div>
     <label class="field"><span>Notes</span><textarea name="notes" maxlength="1000" placeholder="Adresse, documents à apporter…">${esc(ev.notes)}</textarea></label>
     ${!isNew && ev.createdBy ? `<p class="small muted">Ajouté par ${esc(member(ev.createdBy).name)}</p>` : ''}
+    <div class="error"></div>
     <div class="modal-actions">${isNew ? '' : `<button type="button" class="btn btn-danger" data-action="delete-event">${ICON.trash} Supprimer</button>`}
-      <span class="grow"></span><button type="button" class="btn" data-action="close-modal">Annuler</button><button class="btn btn-primary">Enregistrer</button></div>
+      <span class="grow"></span><button type="button" class="btn" data-action="close-modal-btn">Annuler</button><button class="btn btn-primary">Enregistrer</button></div>
   </form></div>`;
   if (isNew) setTimeout(() => $('#event-form [name=title]')?.focus(), 50);
 }
-const closeModal = () => { $('#modal-root').innerHTML = ''; };
+const closeModal = () => { $('#modal-root').innerHTML = ''; setTimeout(checkAlerts, 400); };
 
 function submitEvent(form) {
   const fd = new FormData(form);
+  const repeat = fd.get('repeat');
   const data = {
     title: fd.get('title').trim(), date: fd.get('date'), allDay: !!fd.get('allDay'),
     time: fd.get('allDay') ? '' : fd.get('time'), end: fd.get('allDay') ? '' : fd.get('end'),
-    category: fd.get('category'), repeat: fd.get('repeat'), notes: fd.get('notes').trim(),
-    who: [...form.querySelectorAll('.who-chip.on')].map((b) => b.dataset.id),
+    category: fd.get('category'), repeat, until: repeat === 'none' ? '' : fd.get('until') || '', notes: fd.get('notes').trim(),
+    importance: Number(form.dataset.imp) || 0,
+    who: [...form.querySelectorAll('.who-chip.on:not(.alert-to)')].map((b) => b.dataset.id),
   };
   if (!data.title || !data.date) return;
+  if (fd.get('alertOn')) {
+    const off = fd.get('alertOffset'), at = fd.get('alertAt');
+    const to = [...form.querySelectorAll('.alert-to.on')].map((b) => b.dataset.id);
+    if (off === 'custom' && !at) { form.querySelector('.error').textContent = 'Choisissez la date et l’heure du rappel.'; return; }
+    if (!to.length) { form.querySelector('.error').textContent = 'Choisissez au moins une personne pour le rappel.'; return; }
+    data.alert = { on: true, offset: off === 'custom' ? null : Number(off), at: off === 'custom' ? at : null, to };
+    askNotifications();
+  } else data.alert = null;
   const id = form.dataset.id;
   if (id) save(backend.update('events', id, data));
   else save(backend.add('events', { ...data, createdBy: state.me.id, ts: Date.now() }));
@@ -1011,6 +1064,13 @@ const ACTIONS = {
   'edit-event': (el) => { const ev = state.events.find((x) => x.id === el.dataset.id); if (ev) openEventModal(ev); },
   'close-modal': (el, e) => { if (e.target === el && !$('#member-form[data-first="1"]') && !cardDone) { pin = null; closeModal(); } },
   'toggle-who': (el) => el.classList.toggle('on'),
+  'pick-imp'(el) {
+    const form = el.closest('form');
+    form.dataset.imp = el.dataset.v;
+    form.querySelectorAll('.imp-btn').forEach((b) => b.classList.toggle('on', b === el));
+  },
+  'alarm-ok'() { closeModal(); },
+  'alarm-open'(el) { const ev = state.events.find((x) => x.id === el.dataset.id); closeModal(); if (ev) openEventModal(ev); },
   'delete-event'() {
     const id = $('#event-form').dataset.id;
     const ev = state.events.find((x) => x.id === id);
@@ -1063,6 +1123,16 @@ document.addEventListener('change', async (e) => {
   }
   if (t.dataset.action === 'theme') { ls.set('maison-theme', t.value); applyTheme(); }
   if (t.form?.id === 'event-form' && t.name === 'allDay') $('#time-row').classList.toggle('hidden', t.checked);
+  if (t.form?.id === 'event-form' && t.name === 'repeat') $('#until-f').classList.toggle('hidden', t.value === 'none');
+  if (t.form?.id === 'event-form' && t.name === 'alertOn') {
+    t.form.querySelector('.alert-opts').classList.toggle('hidden', !t.checked);
+    t.form.querySelector('.alert-box').classList.toggle('on', t.checked);
+    if (t.checked) askNotifications();
+  }
+  if (t.form?.id === 'event-form' && t.name === 'alertOffset') {
+    $('#alert-at-f').classList.toggle('hidden', t.value !== 'custom');
+    if (t.value === 'custom' && !t.form.alertAt.value) t.form.alertAt.value = `${t.form.date.value}T${t.form.time.value || '09:00'}`;
+  }
   if (t.form?.id === 'event-form' && t.name === 'category' && t.value === 'anniv') t.form.repeat.value = 'yearly';
   if (t.id === 'f-name' && t.value.trim()) {
     state.family.name = t.value.trim();
@@ -1130,6 +1200,67 @@ function resetIdle() {
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) { applyTablet(); refresh(); }
 });
+
+/* ================= Alertes (rappels) ================= */
+// Chaque appareil vérifie régulièrement les rappels destinés à la personne connectée.
+// Le rappel sonne, s'affiche dans l'appli et en notification système si elle est autorisée.
+function askNotifications() {
+  if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {});
+}
+function alertTimes(ev, from, to) {
+  const a = ev.alert;
+  if (a.at) { const d = a.at.slice(0, 10); return d >= from && d <= to ? [{ occ: d, t: new Date(a.at).getTime() }] : []; }
+  return occurrences(ev, ymd(addDays(parseYmd(from), Math.ceil((a.offset || 0) / 1440))), ymd(addDays(parseYmd(to), Math.ceil((a.offset || 0) / 1440))))
+    .map((d) => ({ occ: d, t: new Date(`${d}T${ev.allDay || !ev.time ? '09:00' : ev.time}`).getTime() - (a.offset || 0) * 60000 }));
+}
+function checkAlerts() {
+  // Une fenêtre est ouverte (saisie en cours) : le rappel attendra qu'elle se ferme.
+  if (!state.me || $('#modal-root').innerHTML) return;
+  const now = Date.now(), from = ymd(addDays(new Date(), -1)), to = ymd(addDays(new Date(), 1));
+  for (const ev of state.events) {
+    const a = ev.alert;
+    if (!a || !a.on || !(a.to || []).includes(state.me.id)) continue;
+    for (const { occ, t } of alertTimes(ev, from, to)) {
+      if (now < t || now - t > 2 * 3600e3) continue; // rappels manqués de plus de 2 h : ignorés
+      const key = `kc-fired:${ev.id}:${occ}:${state.me.id}`;
+      if (ls.get(key)) continue;
+      ls.set(key, '1');
+      fireAlert(ev, occ);
+    }
+  }
+}
+function chime() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [0, 0.25, 0.5].forEach((dt, i) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.frequency.value = [880, 1175, 1568][i]; o.type = 'sine';
+      g.gain.setValueAtTime(0.0001, ctx.currentTime + dt);
+      g.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + dt + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + dt + 0.6);
+      o.connect(g).connect(ctx.destination); o.start(ctx.currentTime + dt); o.stop(ctx.currentTime + dt + 0.7);
+    });
+  } catch {}
+}
+function fireAlert(ev, occ) {
+  const when = `${fmtLong(parseYmd(occ))}${ev.allDay || !ev.time ? '' : ' à ' + ev.time}`;
+  const imp = IMPORTANCE[ev.importance || 0];
+  chime();
+  if ('Notification' in window && Notification.permission === 'granted') {
+    const opts = { body: `${when}${imp.short ? ' · ' + imp.short : ''}`, icon: 'icon-192.png', badge: 'icon-192.png', tag: `kc-alert-${ev.id}-${occ}`, requireInteraction: ev.importance === 2 };
+    navigator.serviceWorker?.ready.then((reg) => reg.showNotification(`⏰ ${ev.title}`, opts))
+      .catch(() => { try { new Notification(`⏰ ${ev.title}`, opts); } catch {} });
+  }
+  $('#modal-root').innerHTML = `<div class="modal-backdrop"><div class="modal alarm-modal imp${ev.importance || 0}">
+    <div class="alarm-bell">⏰</div><div class="eyebrow">Rappel${imp.short ? ' · ' + imp.short : ''}</div>
+    <h2>${esc(ev.title)}</h2><p class="muted" style="margin:6px 0 0">${esc(when)}</p>
+    ${ev.notes ? `<p class="alarm-notes">${esc(ev.notes)}</p>` : ''}
+    <div class="modal-actions" style="justify-content:center;margin-top:20px"><button class="btn" data-action="alarm-open" data-id="${esc(ev.id)}">Voir</button>
+      <button class="btn btn-primary" data-action="alarm-ok">OK, c’est noté</button></div>
+  </div></div>`;
+}
+setInterval(checkAlerts, 20000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkAlerts(); });
 
 let lastDay = todayStr();
 setInterval(() => {

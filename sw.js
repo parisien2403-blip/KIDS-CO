@@ -2,7 +2,7 @@
 // Pages et fichiers de l'appli : réseau d'abord (toujours la dernière version), cache si hors ligne.
 // SDK Firebase et polices Google : cache d'abord. Les échanges de données Firebase ne passent pas par ici.
 
-const CACHE_NAME = 'kidsandco-v5';
+const CACHE_NAME = 'kidsandco-v6';
 const CORE_ASSETS = ['./', './index.html', './style.css', './app.js', './config.js', './manifest.json', './logo.png', './icon-192.png', './favicon.ico'];
 
 self.addEventListener('install', (event) => {
@@ -46,5 +46,16 @@ self.addEventListener('fetch', (event) => {
         return res;
       })
       .catch(() => caches.match(req).then((cached) => cached || (req.mode === 'navigate' ? caches.match('./index.html') : undefined)))
+  );
+});
+
+// Toucher une notification (rappel, message) ouvre l'appli.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      const win = list.find((c) => 'focus' in c);
+      return win ? win.focus() : self.clients.openWindow('./');
+    })
   );
 });

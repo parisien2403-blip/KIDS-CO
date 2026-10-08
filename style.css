@@ -476,3 +476,31 @@ img.avatar{width:42px;height:42px}
   .idcard-top>div{min-width:0}
   .idcard dl{gap:2px}
 }
+
+/* ---------- Importance & alertes ---------- */
+.imp-tag{display:inline-block;font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;margin-right:6px;vertical-align:2px;background:#FDEBC8;color:#8A5A00}
+.ev.imp2 .imp-tag{background:#FDE0DC;color:#B4231A}
+.ev.imp1{box-shadow:inset 0 0 0 1.5px #F3C66B}
+.ev.imp2{box-shadow:inset 0 0 0 2px #EC6A5E;background:linear-gradient(90deg,rgba(236,106,94,.10),var(--row) 55%)}
+.chip.imp1{box-shadow:inset 0 0 0 1.5px #E9B44C}
+.chip.imp2{background:#EC6A5E;color:#fff}
+.dot.imp2{box-shadow:0 0 0 2px #EC6A5E}
+.legend{display:flex;flex-wrap:wrap;gap:16px;margin-top:12px;font-size:12.5px;color:var(--text2);font-weight:600}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.lg{display:inline-block;width:22px;height:12px;border-radius:999px;background:var(--surface-strong)}
+.lg.imp1{box-shadow:inset 0 0 0 1.5px #E9B44C}
+.lg.imp2{background:#EC6A5E}
+.imp-seg .imp-btn.on.imp1{background:#E9A23B;color:#fff}
+.imp-seg .imp-btn.on.imp2{background:#E2554A;color:#fff}
+.alert-box{border:1.5px dashed var(--line);border-radius:var(--r-md);padding:14px 16px;margin-bottom:16px;transition:all .2s}
+.alert-box.on{border-style:solid;border-color:var(--butter-line);background:var(--butter)}
+.alert-box .who-chip .avatar{width:20px;height:20px}
+.alarm-modal{width:min(420px,100%);text-align:center}
+.alarm-modal h2{font-size:28px !important;margin-top:4px}
+.alarm-bell{font-size:56px;line-height:1;margin-bottom:10px;animation:ring 1s ease-in-out 3}
+.alarm-modal.imp2{box-shadow:0 0 0 4px #EC6A5E,var(--shadow-lg)}
+.alarm-notes{background:var(--field);border-radius:var(--r-md);padding:12px;margin:14px 0 0;white-space:pre-wrap}
+@keyframes ring{0%,100%{transform:rotate(0)}20%{transform:rotate(-18deg)}40%{transform:rotate(16deg)}60%{transform:rotate(-10deg)}80%{transform:rotate(6deg)}}
+.imp-seg button{white-space:nowrap}
+@media (max-width:600px){ .imp-seg button{font-size:13px;padding:10px 4px} }
+.alert-to.on .avatar{box-shadow:0 0 0 2px #fff}
