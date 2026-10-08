@@ -2,6 +2,7 @@
 // Un seul code pour la tablette de la cuisine, les PC et les téléphones (Android / iOS).
 // Les données passent par Firebase (voir config.js) ; sans configuration, mode démo local.
 import { firebaseConfig } from './config.js';
+import { APP_VERSION, CHANGELOG } from './version.js';
 
 /* ================= Utilitaires ================= */
 const $ = (s, r = document) => r.querySelector(s);
@@ -470,6 +471,7 @@ function startAs(m, { quiet = false } = {}) {
   renderShell();
   resetIdle();
   beat();
+  setTimeout(showNewsIfUpdated, 900);
   if (!quiet) toast(`Bonjour ${m.name} ${hasPhoto(m) ? '👋' : m.emoji || '👋'}`);
 }
 
@@ -738,7 +740,8 @@ function renderShell() {
   $('#app').innerHTML = `<div class="shell">
     <nav class="sidebar"><div class="brand"><img src="logo.png" alt=""><span class="brand-name">Kids &amp; Co</span><small id="fam-name">${esc(state.family.name)}</small></div>
       <div id="nav-side"></div>
-      <div class="me-card" id="me-card"></div></nav>
+      <div class="me-card" id="me-card"></div>
+      <button class="app-version" data-action="whats-new">Version ${APP_VERSION} · Nouveautés</button></nav>
     <header class="topbar"><img src="logo.png" alt=""><div><span class="brand-name">Kids &amp; Co</span><small id="fam-name-top">${esc(state.family.name)}</small></div>
       <button class="me-btn" data-action="switch-user" aria-label="Changer d’utilisateur" id="me-btn"></button></header>
     <main id="main"></main>
@@ -969,6 +972,11 @@ const VIEWS = {
             <div class="invite">${esc(state.family.id)}</div>
             <button class="btn btn-sm" data-action="share-code">Partager le code</button>` : ''}
         </section>
+        <section class="card"><h2 style="margin-bottom:6px">À propos de Kids &amp; Co</h2>
+          <div class="about-version"><img src="logo.png" alt=""><div><b>Version ${APP_VERSION}</b>
+            <div class="small muted">Mise à jour du ${fmtVersionDate(CHANGELOG[0].date)} · ${esc(CHANGELOG[0].title)}</div></div></div>
+          <div class="quick" style="margin-top:12px"><button class="btn btn-sm btn-primary" data-action="whats-new">✨ Voir les nouveautés</button>
+            <button class="btn btn-sm" data-action="check-update">Rechercher une mise à jour</button></div></section>
         <section class="card"><h2 style="margin-bottom:6px">Cet appareil</h2>
           <div class="switch-line"><div><b>Mode tablette de la maison</b><div class="small muted">Écran toujours allumé, retour à l’accueil après 2 min.</div></div>
             <button class="btn btn-sm ${tablet ? 'btn-primary' : ''}" data-action="toggle-tablet">${tablet ? 'Activé' : 'Activer'}</button></div>
@@ -1444,6 +1452,9 @@ const ACTIONS = {
   },
   'toggle-ask'() { ls.set('kc-ask', ls.get('kc-ask') === '1' ? '0' : '1'); refresh(); },
   'new-event': (el) => openEventModal(null, el.dataset.date),
+  'whats-new': () => openWhatsNew(),
+  'check-update': () => checkUpdate(true),
+  'do-update': () => doUpdate(),
   'new-verif': () => openEventModal(null, todayStr(), { verify: true }),
   'verif-filter'(el) { state.verifFilter = el.dataset.v; refresh(); },
   'verif-done'(el) { setDone(el.dataset.id, el.dataset.occ, { by: state.me.id, at: Date.now() }); toast('✅ Validé — tout le monde le voit'); },
@@ -1698,6 +1709,52 @@ setInterval(() => {
 }, 15000);
 
 /* ================= Lancement ================= */
+/* ================= Version, nouveautés et mises à jour ================= */
+const fmtVersionDate = (d) => parseYmd(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+function openWhatsNew({ onlyNew = false, since = null } = {}) {
+  const list = onlyNew && since ? CHANGELOG.filter((c) => c.version !== since && CHANGELOG.indexOf(c) < CHANGELOG.findIndex((x) => x.version === since)) : CHANGELOG;
+  $('#modal-root').innerHTML = `<div class="modal-backdrop" data-action="close-modal"><div class="modal news-modal">
+    <div class="eyebrow">${onlyNew ? 'Mise à jour installée 🎉' : 'Historique des versions'}</div>
+    <h2>${onlyNew ? `Nouveautés de la version ${APP_VERSION}` : 'Nouveautés de Kids &amp; Co'}</h2>
+    <div class="timeline">${list.map((c, i) => `<div class="tl-item ${i === 0 ? 'current' : ''}">
+      <div class="tl-dot"></div>
+      <div class="tl-body"><div class="tl-head"><span class="tl-version">v${esc(c.version)}</span><b>${esc(c.title)}</b>${i === 0 && !onlyNew ? '<span class="tl-now">Version actuelle</span>' : ''}</div>
+        <div class="small muted">${fmtVersionDate(c.date)}</div>
+        <ul>${c.items.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div></div>`).join('')}</div>
+    <div class="modal-actions">${onlyNew ? '<button class="btn" data-action="whats-new">Tout l’historique</button>' : ''}<span class="grow"></span>
+      <button class="btn btn-primary" data-action="close-modal-btn">${onlyNew ? 'Super !' : 'Fermer'}</button></div>
+  </div></div>`;
+}
+// Après une mise à jour, chaque appareil affiche une fois les nouveautés.
+function showNewsIfUpdated() {
+  const seen = ls.get('kc-version-seen');
+  ls.set('kc-version-seen', APP_VERSION);
+  if (seen && seen !== APP_VERSION && !$('#modal-root').innerHTML) openWhatsNew({ onlyNew: true, since: seen });
+}
+// Vérifie régulièrement si une nouvelle version a été publiée (la tablette reste ouverte longtemps).
+let updateShown = false;
+async function checkUpdate(manual = false) {
+  try {
+    const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
+    const { version } = await r.json();
+    if (version && version !== APP_VERSION) {
+      if (!updateShown) {
+        updateShown = true;
+        const bar = document.createElement('div');
+        bar.className = 'update-bar';
+        bar.innerHTML = `✨ Nouvelle version disponible (v${esc(version)}) <button class="btn btn-sm" data-action="do-update">Mettre à jour</button>`;
+        document.body.append(bar);
+      }
+    } else if (manual) toast(`Vous avez la dernière version (v${APP_VERSION}) ✅`);
+  } catch { if (manual) toast('Impossible de vérifier : pas de connexion internet.', true); }
+}
+setInterval(checkUpdate, 10 * 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkUpdate(); });
+async function doUpdate() {
+  try { const reg = await navigator.serviceWorker?.getRegistration(); await reg?.update(); } catch {}
+  location.reload();
+}
+
 (async function boot() {
   applyTheme();
   applyTablet();

@@ -671,3 +671,27 @@ img.avatar{width:42px;height:42px}
 }
 :root[data-theme="dark"] .stamp{mix-blend-mode:normal;color:#5FD38A;border-color:#5FD38A}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .stamp{mix-blend-mode:normal;color:#5FD38A;border-color:#5FD38A}}
+
+/* ---------- Version et nouveautés ---------- */
+.app-version{margin-top:10px;border:0;background:none;font:inherit;font-size:12px;font-weight:800;color:var(--text);opacity:.65;padding:6px;border-radius:10px}
+.app-version:hover{opacity:1;background:rgba(255,255,255,.3)}
+.about-version{display:flex;gap:14px;align-items:center;margin-top:10px}
+.about-version img{width:52px;height:52px;border-radius:14px;box-shadow:0 8px 18px -8px rgba(34,71,107,.5)}
+.about-version b{font-size:20px;font-weight:900}
+.news-modal{width:min(600px,100%)}
+.news-modal h2{font-size:28px !important;margin-bottom:16px}
+.timeline{position:relative;padding-left:26px}
+.timeline::before{content:"";position:absolute;left:8px;top:8px;bottom:8px;width:2px;background:var(--line)}
+.tl-item{position:relative;padding-bottom:18px}
+.tl-dot{position:absolute;left:-24px;top:5px;width:14px;height:14px;border-radius:50%;background:var(--surface-strong);border:3px solid var(--text3)}
+.tl-item.current .tl-dot{border-color:var(--accent);background:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+.tl-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tl-version{font-size:12px;font-weight:900;padding:2px 9px;border-radius:999px;background:var(--btn);color:var(--btn-ink)}
+.tl-item:not(.current) .tl-version{background:var(--field);color:var(--text2)}
+.tl-now{font-size:11px;font-weight:800;color:#14733A;background:#E6F6EC;padding:2px 8px;border-radius:999px}
+.tl-body ul{margin:6px 0 0;padding-left:18px;font-size:14.5px}
+.tl-body li{margin:2px 0}
+.update-bar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom));z-index:60;display:flex;align-items:center;gap:12px;
+  background:var(--btn);color:var(--btn-ink);padding:10px 12px 10px 18px;border-radius:999px;box-shadow:var(--shadow-lg);font-weight:800;animation:rise .4s cubic-bezier(.2,.8,.2,1)}
+.update-bar .btn{background:#2FA84F;border-color:#2FA84F;color:#fff}
+@media (max-width:860px){ .update-bar{bottom:calc(92px + env(safe-area-inset-bottom));width:calc(100% - 24px);justify-content:space-between;font-size:13.5px} }
