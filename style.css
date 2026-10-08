@@ -808,3 +808,8 @@ img.avatar{width:42px;height:42px}
   .sticker-pick{grid-template-columns:repeat(4,1fr);gap:8px}
 }
 :root[data-theme="dark"] .mission-card{filter:saturate(.9) brightness(.95)}
+/* La carte s'adapte à la largeur : jamais coupée dans les colonnes étroites (Réglages). */
+.settings .idcard{aspect-ratio:auto;min-height:230px}
+.settings .idcard-body{padding:10px 0}
+.settings .idcard-top small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.settings .idcard-top>div{min-width:0}

@@ -2,6 +2,10 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '2.1.1', date: '2026-10-08', title: 'Correction d’affichage',
+    items: ['La carte Kids & Co n’est plus coupée en bas dans Réglages'],
+  },
+  {
     version: '2.1', date: '2026-10-08', title: '🎯 Missions des enfants',
     items: [
       'Case « 🎯 Missions » dans la fiche de chaque compte (cochée par défaut pour un enfant)',
