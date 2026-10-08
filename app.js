@@ -64,6 +64,7 @@ const ICON = {
   cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg>',
   chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.6A8 8 0 1 1 21 12z"/></svg>',
   star: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>',
+  target: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg>',
   verif: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
   book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V5a2 2 0 0 1 2-2h13v16H6.5A2.5 2.5 0 0 0 4 21.5v-2"/><path d="M8 7h7M8 11h5"/></svg>',
   gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
@@ -173,7 +174,7 @@ const save = (p) => Promise.resolve(p).catch((e) => { console.error(e); toast('E
 /* ================= État ================= */
 const state = {
   user: null, me: null, family: null,
-  members: [], events: [], messages: [], notes: [], cours: [], edtNotes: [], edtConfig: {}, presence: [],
+  members: [], events: [], messages: [], notes: [], cours: [], edtNotes: [], edtConfig: {}, presence: [], missions: [],
   view: 'accueil',
   month: (() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); })(),
   selected: todayStr(),
@@ -660,6 +661,8 @@ function openMemberModal(m, { first = false, role } = {}) {
       <label class="field"><span>Prénom</span><input type="text" name="name" value="${esc(m.name)}" maxlength="30" required></label>
       <label class="field ${r === 'maison' ? 'hidden' : ''}" id="f-lastname"><span>Nom</span><input type="text" name="lastName" value="${esc(m.lastName || '')}" maxlength="40"></label>
     </div>
+    <label class="check-line missions-opt ${r === 'maison' ? 'hidden' : ''}"><input type="checkbox" name="missions" ${(m.missions ?? (isNew && r === 'enfant')) ? 'checked' : ''}>
+      🎯 <span><b>Missions</b> <span class="small muted">— onglet ludique : des tâches à cocher chaque jour, des étoiles à gagner</span></span></label>
     <details class="more-opts"><summary>Pas de photo ? Choisir un avatar rigolo</summary>
       <div class="emojis" style="margin-top:10px">
         <button type="button" class="emoji-opt ${m.emoji ? '' : 'on'}" data-action="pick-emoji" data-emoji="" title="Initiale">Aa</button>
@@ -707,7 +710,8 @@ async function submitMember(form) {
   if (old && isParent(old) && role !== 'parent' && state.members.filter(isParent).length === 1) {
     errEl.textContent = 'Il faut garder au moins un parent dans la famille.'; return;
   }
-  const data = { name, lastName, role, color: form.dataset.color, emoji: form.dataset.emoji, createdAt: old?.createdAt || Date.now() };
+  const data = { name, lastName, role, color: form.dataset.color, emoji: form.dataset.emoji, createdAt: old?.createdAt || Date.now(),
+    missions: role !== 'maison' && !!fd.get('missions') };
   if (memberPhoto !== undefined) data.photo = memberPhoto || null;
   try {
     if (pinVal) data.pinHash = await hashPin(pinVal, id);
@@ -787,6 +791,7 @@ async function enter(user) {
   state.membersLoaded = false;
   state.edtNotesLoaded = false;
   doneBefore = null;
+  stickersBefore = null;
   onlineBefore = null;
   state.autoLogin = ls.get('kc-ask') !== '1';
   backend.setFamily(family.id);
@@ -800,6 +805,7 @@ async function enter(user) {
     backend.subscribe('edtNotes', onEdtNotes),
     backend.subscribe('edtConfig', (list) => { state.edtConfig = list.find((x) => x.id === 'main') || {}; refresh(); }),
     backend.subscribe('presence', onPresence),
+    backend.subscribe('missions', onMissions),
   );
 }
 
@@ -849,12 +855,15 @@ function onMessages(list) {
 // [id, libellé, icône, libellé court (barre du bas), masqué dans la barre du bas du téléphone]
 const NAV = [
   ['accueil', 'Accueil', 'home'], ['agenda', 'Agenda', 'cal'], ['verif', 'À vérifier', 'verif', 'Vérifier'],
-  ['edt', 'Emploi du temps', 'book', 'Lycée'], ['messages', 'Messages', 'chat'],
+  ['missions', 'Missions', 'target'], ['edt', 'Emploi du temps', 'book', 'Lycée'], ['messages', 'Messages', 'chat'],
   ['important', 'Pense-bête', 'star', 'Notes', true], ['reglages', 'Réglages', 'gear'],
 ];
 function navButtons(short = false) {
-  const badges = { messages: unreadCount(), verif: verifItems().filter((i) => !i.done).length };
-  return NAV.filter((n) => !(short && n[4])).map(([id, label, icon, s]) => `<button class="nav-btn ${state.view === id ? 'active' : ''}" data-action="nav" data-view="${id}">
+  const badges = { messages: unreadCount(), verif: verifItems().filter((i) => !i.done).length, missions: missionsLeftToday() };
+  let items = NAV.filter((n) => n[0] !== 'missions' || canSeeMissions()).filter((n) => !(short && n[4]));
+  // Barre du bas du téléphone : 6 onglets maximum (Réglages reste accessible via la photo en haut à droite).
+  if (short && items.length > 6) items = items.filter((n) => n[0] !== 'reglages');
+  return items.map(([id, label, icon, s]) => `<button class="nav-btn ${state.view === id ? 'active' : ''}" data-action="nav" data-view="${id}">
     ${ICON[icon]}<span>${short && s ? s : label}</span>${badges[id] ? `<span class="badge">${badges[id]}</span>` : ''}</button>`).join('');
 }
 function renderShell() {
@@ -864,7 +873,7 @@ function renderShell() {
       <div class="me-card" id="me-card"></div>
       <button class="app-version" data-action="whats-new">Version ${APP_VERSION} · Nouveautés</button></nav>
     <header class="topbar"><img src="logo.png" alt=""><div><span class="brand-name">Kids &amp; Co</span><small id="fam-name-top">${esc(state.family.name)}</small></div>
-      <button class="me-btn" data-action="switch-user" aria-label="Changer d’utilisateur" id="me-btn"></button></header>
+      <button class="me-btn" data-action="nav" data-view="reglages" aria-label="Mon compte et réglages" id="me-btn"></button></header>
     <main id="main"></main>
     <nav class="tabbar" id="nav-tab"></nav>
   </div>`;
@@ -875,6 +884,7 @@ function renderShell() {
 function refresh() {
   const main = $('#main');
   if (!main || !state.me) return;
+  if (state.view === 'missions' && !canSeeMissions()) state.view = 'accueil';
   $('#nav-side').innerHTML = navButtons();
   $('#nav-tab').innerHTML = navButtons(true);
   $('#fam-name').textContent = state.family.name;
@@ -935,6 +945,7 @@ const VIEWS = {
         <section class="card tint-mint"><div class="card-head"><h2>À venir</h2><button class="btn btn-sm" data-action="nav" data-view="agenda">Agenda</button></div>
           ${upcoming.map((d) => `<div class="day-group"><h3>${d === ymd(addDays(now, 1)) ? 'Demain' : esc(fmtLong(parseYmd(d)))}</h3>
             <div class="list">${map[d].map((ev) => evItem(ev)).join('')}</div></div>`).join('') || '<div class="empty">Rien dans les 2 prochaines semaines.</div>'}</section>
+        ${missionsDashboardCard()}
         ${edtDashboardCard()}
         <section class="card tint-sky"><div class="card-head"><h2>Ma boîte de réception${unread ? ` <span class="badge" style="margin-left:6px">${unread}</span>` : ''}</h2><button class="btn btn-sm" data-action="nav" data-view="messages">Tout voir</button></div>
           <div class="list">${myMail.map((m) => mailItem(m, 'in', true)).join('') || '<div class="empty">Aucun message pour vous.</div>'}</div></section>
@@ -984,6 +995,59 @@ const VIEWS = {
         <button class="${box === 'out' ? 'on' : ''}" data-action="box" data-box="out">📤 Boîte d’envoi</button></div>
       <div class="list mail-list">${list.map((m) => mailItem(m, box)).join('')
         || `<div class="empty">${box === 'out' ? 'Vous n’avez encore envoyé aucun message.' : 'Aucun message reçu pour l’instant.'}</div>`}</div>`;
+  },
+
+  missions() {
+    const kids = missionKids();
+    let kidId = kids.some((k) => k.id === state.missionKid) ? state.missionKid : state.me.missions ? state.me.id : kids[0]?.id;
+    if (!kidId) return `<div class="view-head"><div><div class="eyebrow">Pour les enfants</div><h1>🎯 Missions</h1></div></div>
+      <div class="card"><p class="muted">Aucun enfant n’a encore les Missions. Activez la case « 🎯 Missions » dans sa fiche (Réglages → La famille → Modifier).</p></div>`;
+    const kid = member(kidId), canPickKid = (isParent(state.me) || isMaison(state.me)) && kids.length > 0;
+    const curWk = weekKey(new Date()), wk = state.missionWeek || curWk, mon = parseYmd(wk), t = todayStr();
+    const days = Array.from({ length: 7 }, (_, i) => ymd(addDays(mon, i)));
+    const tasks = tasksOf(kid), doc = missionDoc(kidId, wk), stars = Object.keys(doc.stickers || {}).length;
+    const sun = addDays(mon, 6), parent = isParent(state.me), canTick = canCheck(kid);
+    const dayIdx = Math.min(6, Math.max(0, state.missionDay ?? (wk === curWk ? (new Date().getDay() + 6) % 7 : 0)));
+    const sticker = (d, i) => {
+      const s = doc.stickers?.[d];
+      const rot = ((i * 37) % 30) - 15;
+      return `<button class="sticker-slot ${s ? 'has' : ''} ${d === t ? 'today' : ''}" data-action="sticker-slot" data-kid="${esc(kidId)}" data-date="${d}" title="${s ? esc(STICKER[s.type]?.l || '') + ' — par ' + esc(member(s.by).name) : parent ? 'Coller une étoile' : 'Les parents collent les étoiles'}">
+        <span class="slot-day">${WEEKDAYS[i]}</span>${s ? `<span class="sticker ${freshSticker(kidId, d, s) ? 'fresh' : ''}" style="--r:${rot}deg">${STICKER[s.type]?.e || '⭐'}</span>` : `<span class="slot-empty">${parent ? '＋' : ''}</span>`}</button>`;
+    };
+    const cell = (d, task) => {
+      const on = (doc.checks?.[d] || []).includes(task), future = d > t;
+      return `<button class="mcheck ${on ? 'on' : ''} ${future ? 'future' : ''} ${d === t ? 'today' : ''}" data-action="mission-check" data-kid="${esc(kidId)}" data-date="${d}" data-task="${esc(task)}"
+        ${!canTick || future ? 'disabled' : ''} aria-label="${esc(task)}">${on ? '✓' : ''}</button>`;
+    };
+    const dayDone = (d) => tasks.filter((x) => (doc.checks?.[d] || []).includes(x)).length;
+    return `<div class="view-head"><div><div class="eyebrow">${wk === curWk ? '🔄 Tout repart à zéro lundi' : 'Semaine terminée'}</div><h1>🎯 Missions</h1></div>
+        <div class="cal-nav"><button class="btn btn-icon" data-action="mission-week" data-delta="-1" aria-label="Semaine précédente">${ICON.left}</button>
+          <h2 class="edt-weeklabel">Du ${mon.getDate()} au ${sun.getDate()} ${sun.toLocaleDateString('fr-FR', { month: 'long' })}</h2>
+          <button class="btn btn-icon" data-action="mission-week" data-delta="1" ${wk === curWk ? 'disabled' : ''} aria-label="Semaine suivante">${ICON.right}</button>
+          ${wk === curWk ? '' : '<button class="btn btn-sm" data-action="mission-week" data-delta="0">Cette semaine</button>'}</div></div>
+      ${canPickKid ? `<div class="kid-tabs">${kids.map((k) => `<button class="kid-tab ${k.id === kidId ? 'on' : ''}" style="--c:${esc(k.color)}" data-action="mission-kid" data-id="${esc(k.id)}">${avatar(k)} ${esc(k.name)}
+          <span class="kid-stars">⭐ ${Object.keys(missionDoc(k.id, wk).stickers || {}).length}</span></button>`).join('')}</div>` : ''}
+      <section class="mission-card" style="--c:${esc(kid.color)}">
+        <div class="mission-top">
+          <span class="idcard-photo${faceClass(kid)}" style="--c:${esc(kid.color)}">${faceText(kid)}</span>
+          <div class="mission-title"><span class="mission-label">CARTE MISSION</span><b>${esc(fullName(kid))}</b>
+            <span class="small">${wk === curWk ? 'Cette semaine' : 'Semaine du ' + mon.getDate() + ' ' + mon.toLocaleDateString('fr-FR', { month: 'short' })}</span></div>
+          <div class="mission-score"><span>⭐</span><b>${stars}</b><small>étoile${stars > 1 ? 's' : ''}</small></div>
+        </div>
+        <div class="sticker-row">${days.map(sticker).join('')}</div>
+        <div class="mission-grid" style="--n:7">
+          <div></div>${days.map((d, i) => `<div class="mg-day ${d === t ? 'today' : ''}">${WEEKDAYS[i]}<small>${parseYmd(d).getDate()}</small></div>`).join('')}
+          ${tasks.map((task) => `<div class="mg-task">${esc(task)}</div>${days.map((d) => cell(d, task)).join('')}`).join('')}
+          <div class="mg-task muted small">Fait</div>${days.map((d) => `<div class="mg-count ${dayDone(d) === tasks.length ? 'full' : ''}">${dayDone(d)}/${tasks.length}</div>`).join('')}
+        </div>
+        <div class="mission-mobile">
+          <div class="edt-daytabs">${days.map((d, i) => `<button class="${i === dayIdx ? 'on' : ''} ${d === t ? 'today' : ''}" data-action="mission-day" data-i="${i}"><b>${WEEKDAYS[i]}</b><span>${dayDone(d) === tasks.length ? '✅' : parseYmd(d).getDate()}</span></button>`).join('')}</div>
+          <div class="mission-list">${tasks.map((task) => `<div class="mrow">${cell(days[dayIdx], task)}<span>${esc(task)}</span></div>`).join('')}</div>
+        </div>
+        <div class="mission-foot">${parent ? `<button class="btn btn-sm" data-action="manage-missions" data-id="${esc(kidId)}">⚙️ Gérer les missions de ${esc(kid.name)}</button>
+            <span class="small">Touchez un jour en haut pour coller un autocollant ⭐</span>`
+          : `<span class="small">${stars ? `Bravo ! Déjà ${stars} étoile${stars > 1 ? 's' : ''} cette semaine 🎉` : 'Coche tes missions chaque jour pour gagner des étoiles ⭐'}</span>`}</div>
+      </section>`;
   },
 
   verif() {
@@ -1402,6 +1466,131 @@ function onEvents(list) {
   checkAlerts();
 }
 
+/* ================= Missions des enfants ================= */
+// Chaque enfant « Missions » a une carte par semaine (du lundi au dimanche) : tâches cochées
+// chaque jour et autocollants collés par les parents. Une nouvelle carte vierge chaque lundi.
+const DEFAULT_TASKS = ['🚿 Prendre sa douche', '🛏️ Faire son lit', '🍽️ Débarrasser la table', '🧸 Ranger ses jouets'];
+const TASK_IDEAS = ['🦷 Se brosser les dents', '🎒 Préparer son cartable', '📚 Faire ses devoirs', '🍽️ Mettre la table', '👕 Ranger ses vêtements', '🐶 Nourrir l’animal', '📖 Lire 15 minutes', '🗑️ Sortir la poubelle'];
+const STICKERS = [['star', '⭐', 'Étoile'], ['super', '🌟', 'Super étoile'], ['trophy', '🏆', 'Champion'], ['heart', '💖', 'Bravo'],
+  ['unicorn', '🦄', 'Magique'], ['rocket', '🚀', 'Fusée'], ['crown', '👑', 'Royal'], ['rainbow', '🌈', 'Arc-en-ciel']];
+const STICKER = Object.fromEntries(STICKERS.map(([k, e, l]) => [k, { e, l }]));
+const WEEKDAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+const missionKids = () => state.members.filter((m) => m.missions && !isMaison(m));
+const canSeeMissions = () => !!state.me && (!!state.me.missions || ((isParent(state.me) || isMaison(state.me)) && missionKids().length > 0));
+const tasksOf = (m) => (m.missionTasks && m.missionTasks.length ? m.missionTasks : DEFAULT_TASKS);
+const weekKey = (d) => ymd(mondayOf(d));
+const missionId = (mid, wk) => `${mid}_${wk}`;
+const canCheck = (kid) => !!state.me && (state.me.id === kid.id || isParent(state.me) || isMaison(state.me));
+function missionDoc(mid, wk) {
+  return state.missions.find((x) => x.id === missionId(mid, wk)) || { id: missionId(mid, wk), memberId: mid, week: wk, checks: {}, stickers: {}, _new: true };
+}
+function writeMission(doc, field) {
+  if (doc._new) {
+    delete doc._new;
+    state.missions.push(doc);
+    save(backend.set('missions', doc.id, { memberId: doc.memberId, week: doc.week, checks: doc.checks, stickers: doc.stickers }));
+  } else save(backend.update('missions', doc.id, { [field]: doc[field] }));
+  refresh();
+}
+function missionsLeftToday() {
+  if (!state.me?.missions) return 0;
+  const t = todayStr(), done = missionDoc(state.me.id, weekKey(new Date())).checks?.[t] || [];
+  return tasksOf(state.me).filter((x) => !done.includes(x)).length;
+}
+function toggleTask(kidId, date, task) {
+  const kid = member(kidId);
+  if (!canCheck(kid)) return;
+  if (date > todayStr()) return toast('Pas encore ! On coche le jour même 😉');
+  const doc = missionDoc(kidId, weekKey(parseYmd(date)));
+  const list = new Set(doc.checks?.[date] || []), was = list.has(task);
+  if (was) list.delete(task); else list.add(task);
+  doc.checks = { ...doc.checks, [date]: [...list] };
+  writeMission(doc, 'checks');
+  if (!was && tasksOf(kid).every((x) => list.has(x))) {
+    confetti(['🎉', '⭐', '🌟', '✨']);
+    toast(state.me.id === kidId ? `Bravo ${kid.name} ! Toutes tes missions du jour sont faites 🎉` : `${kid.name} a fini toutes ses missions du jour 🎉`);
+  }
+}
+function setSticker(kidId, date, type) {
+  if (!isParent(state.me)) return;
+  const doc = missionDoc(kidId, weekKey(parseYmd(date)));
+  const st = { ...(doc.stickers || {}) };
+  if (type) st[date] = { type, by: state.me.id, at: Date.now() }; else delete st[date];
+  doc.stickers = st;
+  writeMission(doc, 'stickers');
+  if (type) confetti([STICKER[type].e]);
+}
+function openStickerPicker(kidId, date) {
+  const kid = member(kidId), cur = missionDoc(kidId, weekKey(parseYmd(date))).stickers?.[date];
+  $('#modal-root').innerHTML = `<div class="modal-backdrop" data-action="close-modal"><div class="modal sticker-modal">
+    <div class="eyebrow">${esc(cap(parseYmd(date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })))}</div>
+    <h2>Un autocollant pour ${esc(kid.name)} ?</h2>
+    <div class="sticker-pick">${STICKERS.map(([k, e, l], i) => `<button class="sticker-opt ${cur?.type === k ? 'on' : ''}" data-action="pick-sticker" data-kid="${esc(kidId)}" data-date="${date}" data-type="${k}">
+      <span class="sticker" style="--r:${((i * 37) % 30) - 15}deg">${e}</span><small>${l}</small></button>`).join('')}</div>
+    <div class="modal-actions">${cur ? `<button class="btn btn-danger" data-action="pick-sticker" data-kid="${esc(kidId)}" data-date="${date}" data-type="">Retirer l’autocollant</button>` : ''}
+      <span class="grow"></span><button class="btn" data-action="close-modal-btn">Annuler</button></div>
+  </div></div>`;
+}
+function openManageMissions(kidId) {
+  const kid = member(kidId), tasks = tasksOf(kid);
+  $('#modal-root').innerHTML = `<div class="modal-backdrop" data-action="close-modal"><form class="modal" id="missions-form" data-id="${esc(kidId)}">
+    <h2 style="margin-bottom:6px">Missions de ${esc(kid.name)}</h2>
+    <p class="muted small" style="margin:0 0 14px">Les mêmes missions chaque jour. Elles s’appliquent tout de suite.</p>
+    <div class="task-edit" id="task-edit">${tasks.map((x) => `<div class="task-line"><input type="text" value="${esc(x)}" maxlength="60"><button type="button" class="del" data-action="del-task" aria-label="Supprimer">${ICON.trash}</button></div>`).join('')}</div>
+    <button type="button" class="btn btn-sm" data-action="add-task" style="margin:10px 0 14px">${ICON.plus} Ajouter une mission</button>
+    <div class="field"><span>Idées</span><div class="who">${TASK_IDEAS.map((x) => `<button type="button" class="who-chip" style="--c:var(--accent)" data-action="add-task" data-text="${esc(x)}">${esc(x)}</button>`).join('')}</div></div>
+    <label class="check-line"><input type="checkbox" name="active" checked> 🎯 Missions activées pour ${esc(kid.name)}</label>
+    <div class="modal-actions"><span class="grow"></span><button type="button" class="btn" data-action="close-modal-btn">Annuler</button><button class="btn btn-primary">Enregistrer</button></div>
+  </form></div>`;
+}
+function missionsDashboardCard() {
+  if (!canSeeMissions()) return '';
+  const t = todayStr(), wk = weekKey(new Date());
+  if (state.me.missions && !isParent(state.me)) {
+    const kid = state.me, doc = missionDoc(kid.id, wk), done = doc.checks?.[t] || [], stars = Object.keys(doc.stickers || {}).length;
+    return `<section class="card tint-butter"><div class="card-head"><h2>🎯 Mes missions du jour</h2><span class="kid-stars big">⭐ ${stars}</span></div>
+      <div class="mission-list">${tasksOf(kid).map((task) => `<div class="mrow"><button class="mcheck ${done.includes(task) ? 'on' : ''}" data-action="mission-check" data-kid="${esc(kid.id)}" data-date="${t}" data-task="${esc(task)}">${done.includes(task) ? '✓' : ''}</button><span>${esc(task)}</span></div>`).join('')}</div>
+      <button class="btn btn-sm" style="margin-top:12px" data-action="nav" data-view="missions">Ma carte Mission</button></section>`;
+  }
+  return `<section class="card tint-butter"><div class="card-head"><h2>🎯 Missions des enfants</h2><button class="btn btn-sm" data-action="nav" data-view="missions">Voir</button></div>
+    <div class="list">${missionKids().map((k) => {
+      const doc = missionDoc(k.id, wk), n = tasksOf(k).length, d = tasksOf(k).filter((x) => (doc.checks?.[t] || []).includes(x)).length;
+      return `<button class="kid-progress" data-action="mission-kid" data-id="${esc(k.id)}" data-go="1">${avatar(k)}<span class="kp-body"><b>${esc(k.name)}</b>
+        <span class="kp-bar"><i style="width:${n ? Math.round((d / n) * 100) : 0}%"></i></span><span class="small muted">${d}/${n} aujourd’hui</span></span>
+        <span class="kid-stars">⭐ ${Object.keys(doc.stickers || {}).length}</span></button>`;
+    }).join('')}</div></section>`;
+}
+let stickersBefore = null;
+// Un autocollant ne s'anime qu'une fois, juste après avoir été collé.
+const stuck = new Set();
+function freshSticker(kidId, date, st) {
+  const key = `${kidId}|${date}|${st.at}`;
+  if (stuck.has(key) || Date.now() - st.at > 4000) return false;
+  stuck.add(key);
+  return true;
+}
+function onMissions(list) {
+  const now = new Map();
+  for (const d of list) for (const [date, st] of Object.entries(d.stickers || {})) now.set(`${d.memberId}|${date}|${st.type}`, st);
+  if (stickersBefore && state.me) {
+    for (const [k, st] of now) if (!stickersBefore.has(k) && k.startsWith(state.me.id + '|') && st.by !== state.me.id) {
+      const date = k.split('|')[1];
+      confetti([STICKER[st.type]?.e || '⭐']);
+      toast(`${STICKER[st.type]?.e || '⭐'} ${member(st.by).name} t’a collé « ${STICKER[st.type]?.l || 'Étoile'} » pour ${parseYmd(date).toLocaleDateString('fr-FR', { weekday: 'long' })} !`);
+    }
+  }
+  stickersBefore = now;
+  state.missions = list;
+  refresh();
+}
+function confetti(emojis) {
+  const box = document.createElement('div');
+  box.className = 'confetti';
+  box.innerHTML = Array.from({ length: 26 }, (_, i) => `<span style="left:${Math.random() * 100}%;animation-delay:${Math.random() * 0.5}s;font-size:${18 + Math.random() * 22}px">${emojis[i % emojis.length]}</span>`).join('');
+  document.body.append(box);
+  setTimeout(() => box.remove(), 2600);
+}
+
 function noteItem(n) {
   const a = member(n.author);
   return `<div class="note ${n.important ? 'imp' : ''} ${n.done ? 'done' : ''}">
@@ -1570,6 +1759,8 @@ const ACTIONS = {
     $('#f-lastname').classList.toggle('hidden', el.dataset.role === 'maison');
     form.querySelector('.maison-hint').classList.toggle('hidden', el.dataset.role !== 'maison');
     if (el.dataset.role === 'maison' && !form.name.value) form.name.value = 'Maison';
+    form.querySelector('.missions-opt').classList.toggle('hidden', el.dataset.role === 'maison');
+    if (form.dataset.new && el.dataset.role !== 'maison') form.missions.checked = el.dataset.role === 'enfant';
     updatePhotoPreview();
   },
   'pick-emoji'(el) {
@@ -1588,6 +1779,31 @@ const ACTIONS = {
   'whats-new': () => openWhatsNew(),
   'check-update': () => checkUpdate(true),
   'do-update': () => doUpdate(),
+  'mission-check'(el) { toggleTask(el.dataset.kid, el.dataset.date, el.dataset.task); },
+  'mission-kid'(el) { state.missionKid = el.dataset.id; if (el.dataset.go) go('missions'); else refresh(); },
+  'mission-day'(el) { state.missionDay = Number(el.dataset.i); refresh(); },
+  'mission-week'(el) {
+    const n = Number(el.dataset.delta), cur = mondayOf(new Date());
+    const next = n === 0 ? cur : addDays(parseYmd(state.missionWeek || ymd(cur)), 7 * n);
+    state.missionWeek = next > cur ? ymd(cur) : ymd(next);
+    state.missionDay = undefined;
+    refresh();
+  },
+  'sticker-slot'(el) {
+    if (!isParent(state.me)) return toast('Seuls les parents peuvent coller les autocollants ⭐');
+    openStickerPicker(el.dataset.kid, el.dataset.date);
+  },
+  'pick-sticker'(el) { closeModal(); setSticker(el.dataset.kid, el.dataset.date, el.dataset.type); },
+  'manage-missions'(el) { openManageMissions(el.dataset.id); },
+  'add-task'(el) {
+    const box = $('#task-edit'), line = document.createElement('div');
+    line.className = 'task-line';
+    line.innerHTML = `<input type="text" maxlength="60" placeholder="Ex. 🦷 Se brosser les dents"><button type="button" class="del" data-action="del-task" aria-label="Supprimer">${ICON.trash}</button>`;
+    box.append(line);
+    line.querySelector('input').value = el.dataset.text || '';
+    if (!el.dataset.text) line.querySelector('input').focus();
+  },
+  'del-task'(el) { el.closest('.task-line').remove(); },
   'new-verif': () => openEventModal(null, todayStr(), { verify: true }),
   'verif-filter'(el) { state.verifFilter = el.dataset.v; refresh(); },
   'verif-done'(el) { setDone(el.dataset.id, el.dataset.occ, { by: state.me.id, at: Date.now() }); toast('✅ Validé — tout le monde le voit'); },
@@ -1711,6 +1927,11 @@ document.addEventListener('submit', async (e) => {
   } else if (f.id === 'setup-form') submitSetup(f);
   else if (f.id === 'event-form') submitEvent(f);
   else if (f.id === 'compose-form') submitCompose(f);
+  else if (f.id === 'missions-form') {
+    const tasks = [...new Set([...f.querySelectorAll('#task-edit input')].map((i) => i.value.trim()).filter(Boolean))];
+    save(backend.update('membres', f.dataset.id, { missionTasks: tasks.length ? tasks : DEFAULT_TASKS, missions: f.active.checked }));
+    closeModal(); toast('Missions enregistrées 🎯');
+  }
   else if (f.id === 'course-form') submitCourse(f);
   else if (f.id === 'edt-note-form') {
     const box = $('.course-modal'), text = f.text.value.trim();

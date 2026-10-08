@@ -2,6 +2,15 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '2.1', date: '2026-10-08', title: '🎯 Missions des enfants',
+    items: [
+      'Case « 🎯 Missions » dans la fiche de chaque compte (cochée par défaut pour un enfant)',
+      'Onglet Missions : une carte par semaine, des tâches à cocher chaque jour (douche, lit, table, jouets…)',
+      'Les parents collent des autocollants (⭐ 🌟 🏆 💖 🦄…) sur la carte ; tout repart à zéro chaque lundi',
+      'Missions du jour sur l’accueil, fête quand tout est fait, liste de missions modifiable par les parents',
+    ],
+  },
+  {
     version: '2.0', date: '2026-10-08', title: 'Nouvelle page d’accueil : prénom + code secret',
     items: [
       'À l’ouverture, chacun se connecte avec son prénom et son code secret (ou en touchant sa photo)',

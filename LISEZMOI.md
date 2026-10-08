@@ -59,6 +59,11 @@ La synchronisation entre appareils utilise **Firebase** (Google), dont l'offre g
 - Vue **mois par mois** ; chaque élément a une catégorie, une date, des horaires, un **niveau d'importance** (Normal / Important / Urgent) et peut se **répéter** (tous les jours, en semaine, chaque semaine, toutes les 2 semaines, chaque mois, chaque année) jusqu'à une date.
 - Case **🔔 Alerte** : rappel à l'heure, quelques minutes avant, la veille ou à une date et heure précises, pour les personnes choisies. Le rappel sonne et s'affiche sur les appareils où ces personnes sont connectées (l'appli doit être ouverte ou en arrière-plan ; la tablette Maison, toujours allumée, est idéale).
 
+### 🎯 Missions des enfants
+- Dans la fiche d'un compte (Parent / Enfant / Maison), la case **🎯 Missions** donne accès à l'onglet Missions (cochée par défaut pour un enfant).
+- Chaque enfant a sa **carte Mission de la semaine** : des tâches à cocher chaque jour (douche, lit, table, jouets… modifiables par les parents).
+- **Seuls les parents** collent des autocollants (⭐ 🌟 🏆 💖 🦄 🚀 👑 🌈) sur la carte. **Chaque lundi, une nouvelle carte vierge** ; les semaines passées restent consultables.
+
 ### À vérifier (choses très importantes)
 - Dans la fiche d'un élément du planning, cochez **📌 À vérifier — très important** : il apparaît dans le calendrier **et** dans l'onglet **À vérifier**.
 - On y voit l'échéance (en retard, aujourd'hui, demain, dans X jours), le rappel et qui est concerné.
