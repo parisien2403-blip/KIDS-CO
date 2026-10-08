@@ -2,6 +2,15 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '2.6', date: '2026-10-09', title: '🔔 Notifications sur le téléphone, même appli fermée',
+    items: [
+      'Message reçu, rendez-vous ajouté / modifié / supprimé, validation « À vérifier »',
+      'Étoile collée (pour l’enfant), missions du jour finies (pour les parents)',
+      'Changement d’emploi du temps et infos du lycée, chose importante ajoutée au pense-bête',
+      'Réglages → Notifications → Activer, puis « 🔔 Tester »',
+    ],
+  },
+  {
     version: '2.5', date: '2026-10-09', title: 'Emploi du temps façon scolaire',
     items: [
       'Nouvelle vue principale : grille fixe Lundi → Vendredi avec les heures, comme un emploi du temps de lycée',

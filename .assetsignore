@@ -4,3 +4,5 @@ wrangler.jsonc
 .assetsignore
 firestore.rules
 LISEZMOI.md
+worker.js
+node_modules

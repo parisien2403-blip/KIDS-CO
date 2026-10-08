@@ -174,7 +174,7 @@ const save = (p) => Promise.resolve(p).catch((e) => { console.error(e); toast('E
 /* ================= État ================= */
 const state = {
   user: null, me: null, family: null,
-  members: [], events: [], messages: [], notes: [], cours: [], edtNotes: [], edtConfig: {}, presence: [], missions: [],
+  members: [], events: [], messages: [], notes: [], cours: [], edtNotes: [], edtConfig: {}, presence: [], missions: [], push: [],
   view: 'accueil',
   month: (() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); })(),
   selected: todayStr(),
@@ -584,9 +584,11 @@ function startAs(m, { quiet = false } = {}) {
     ls.set('maison-tablet', '1'); applyTablet();
     if (!quiet) toast('Mode tablette de la maison activé 🏠');
   }
+  if (state.pendingView && NAV.some((n) => n[0] === state.pendingView)) { state.view = state.pendingView; state.pendingView = null; }
   renderShell();
   resetIdle();
   beat();
+  syncPush();
   setTimeout(showNewsIfUpdated, 900);
   if (!quiet) toast(`Bonjour ${m.name} ${hasPhoto(m) ? '👋' : m.emoji || '👋'}`);
 }
@@ -815,6 +817,7 @@ async function enter(user) {
     backend.subscribe('edtConfig', (list) => { state.edtConfig = list.find((x) => x.id === 'main') || {}; refresh(); }),
     backend.subscribe('presence', onPresence),
     backend.subscribe('missions', onMissions),
+    backend.subscribe('push', (list) => { state.push = list; }),
   );
 }
 
@@ -1180,8 +1183,8 @@ const VIEWS = {
             <button class="btn btn-sm ${ls.get('kc-ask') === '1' ? 'btn-primary' : ''}" data-action="toggle-ask">${ls.get('kc-ask') === '1' ? 'Activé' : 'Activer'}</button></div>
           <div class="switch-line"><b>Thème</b><select data-action="theme">
             ${[['auto', 'Automatique'], ['light', 'Clair'], ['dark', 'Sombre']].map(([v, l]) => `<option value="${v}" ${theme === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
-          <div class="switch-line"><div><b>Notifications</b><div class="small muted">Alerte quand un message arrive et que l’appli est en arrière-plan.</div></div>
-            ${notif === 'granted' ? '<span class="small muted">Activées ✅</span>' : notif === 'denied' ? '<span class="small muted">Bloquées</span>'
+          <div class="switch-line"><div><b>Notifications</b><div class="small muted">Messages, agenda, validations, étoiles, lycée… même quand l’appli est fermée.</div></div>
+            ${notif === 'granted' ? (backend.mode === 'cloud' ? '<button class="btn btn-sm" data-action="push-test">🔔 Tester</button>' : '<span class="small muted">Activées ✅</span>') : notif === 'denied' ? '<span class="small muted">Bloquées</span>'
               : notif === 'unsupported' ? (isIOS() && !isStandalone() ? '<span class="small muted">À installer d’abord</span>' : '<span class="small muted">Non disponible</span>') : '<button class="btn btn-sm" data-action="notif">Activer</button>'}</div>
           ${notifHelp(notif)}
           <div class="switch-line"><div><b>Installer l’appli</b><div class="small muted">iPhone/iPad : Partager → « Sur l’écran d’accueil ». Android/PC : menu du navigateur → « Installer l’application ».</div></div></div>
@@ -1247,6 +1250,7 @@ function submitCompose(form) {
   if (!all && !to.length) { form.querySelector('.error').textContent = 'Choisissez au moins un destinataire.'; return; }
   if (!text) return;
   save(backend.add('messages', { from: state.me.id, to: all ? null : to, subject, text, ts: Date.now(), readBy: [state.me.id] }));
+  notify(all ? 'all' : to, { title: `✉️ ${state.me.name}${subject ? ' — ' + subject : ''}`, body: text, tag: 'msg', view: 'messages' });
   closeModal();
   toast('Message envoyé ✉️');
 }
@@ -1436,6 +1440,7 @@ function submitCourse(form) {
   if (id) save(backend.update('cours', id, { ...base, ...first, editedBy: state.me.id }));
   else save(backend.add('cours', { ...base, ...first, author: state.me.id, ts: Date.now() }));
   others.forEach((x, i) => save(backend.add('cours', { ...base, ...x, author: state.me.id, ts: Date.now() + i + 1 })));
+  notify('all', { title: `📚 Emploi du temps ${id ? 'modifié' : 'mis à jour'}`, body: `${base.subject} — ${slots.map((x) => `${EDT_DAYS[x.day - 1].toLowerCase()} ${x.start}`).join(', ')}`, tag: 'cours', view: 'edt' });
   closeModal();
   const n = slots.length;
   toast(id ? `Cours modifié${others.length ? ` + ${others.length} jour${others.length > 1 ? 's' : ''} ajouté${others.length > 1 ? 's' : ''}` : ''} — visible par toute la famille`
@@ -1516,6 +1521,7 @@ function setDone(id, occ, value) {
   if (value) done[occ] = value; else delete done[occ];
   ev.done = done; // affichage immédiat, la synchronisation suit
   save(backend.update('events', id, { done }));
+  if (value) notify('all', { title: `✅ Validé : ${ev.title}`, body: `par ${state.me.name}`, tag: 'verif-' + id, view: 'verif' });
   refresh();
 }
 let doneBefore = null;
@@ -1577,6 +1583,7 @@ function toggleTask(kidId, date, task) {
   writeMission(doc, 'checks');
   if (!was && tasksOf(kid).every((x) => list.has(x))) {
     confetti(['🎉', '⭐', '🌟', '✨']);
+    notify(state.members.filter(isParent).map((m) => m.id), { title: `🎯 ${kid.name} a fini ses missions du jour !`, body: 'Une étoile à coller ? ⭐', tag: 'missions-' + kidId, view: 'missions' });
     toast(state.me.id === kidId ? `Bravo ${kid.name} ! Toutes tes missions du jour sont faites 🎉` : `${kid.name} a fini toutes ses missions du jour 🎉`);
   }
 }
@@ -1587,7 +1594,10 @@ function setSticker(kidId, date, type) {
   if (type) st[date] = { type, by: state.me.id, at: Date.now() }; else delete st[date];
   doc.stickers = st;
   writeMission(doc, 'stickers');
-  if (type) confetti([STICKER[type].e]);
+  if (type) {
+    confetti([STICKER[type].e]);
+    notify([kidId], { title: `${STICKER[type].e} ${state.me.name} t’a collé « ${STICKER[type].l} » !`, body: 'Va voir ta carte Mission 🎯', tag: 'sticker-' + date, view: 'missions' });
+  }
 }
 function openStickerPicker(kidId, date) {
   const kid = member(kidId), cur = missionDoc(kidId, weekKey(parseYmd(date))).stickers?.[date];
@@ -1738,6 +1748,8 @@ function submitEvent(form) {
   const id = form.dataset.id;
   if (id) save(backend.update('events', id, data));
   else save(backend.add('events', { ...data, createdBy: state.me.id, ts: Date.now() }));
+  const when = `${cap(parseYmd(data.date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }))}${data.allDay || !data.time ? '' : ' à ' + data.time}`;
+  notify('all', { title: `${data.verify ? '📌' : '📅'} ${id ? 'Modifié' : 'Nouveau'} : ${data.title}`, body: `${when} — par ${state.me.name}`, tag: 'ev-' + (id || data.title), view: data.verify ? 'verif' : 'agenda' });
   state.selected = data.date;
   closeModal();
   toast(id ? 'Rendez-vous modifié' : 'Rendez-vous ajouté — visible sur tous les appareils');
@@ -1769,6 +1781,7 @@ const ACTIONS = {
   async logout() {
     if (state.family && !confirm('Déconnecter cet appareil de la famille ?')) return;
     state.me = null; beat(false);
+    if (backend.mode === 'cloud') await save(backend.remove('push', deviceId)); // plus de notifications sur cet appareil
     stopSubs(); await backend.signOut();
   },
   'switch-user': () => switchUser(),
@@ -1906,6 +1919,7 @@ const ACTIONS = {
     const ev = state.events.find((x) => x.id === id);
     if (!confirm(`Supprimer « ${ev?.title} »${ev?.repeat !== 'none' ? ' (toutes les répétitions)' : ''} ?`)) return;
     save(backend.remove('events', id)); closeModal(); toast('Rendez-vous supprimé');
+    if (ev) notify('all', { title: `🗑️ Supprimé : ${ev.title}`, body: `par ${state.me.name}`, tag: 'ev-' + id, view: 'agenda' });
   },
   'edt-week'(el) {
     const n = Number(el.dataset.delta);
@@ -1974,7 +1988,8 @@ const ACTIONS = {
     try { await navigator.clipboard.writeText(text); toast('Code copié'); } catch { toast('Code : ' + state.family.id); }
   },
   'toggle-tablet'() { ls.set('maison-tablet', ls.get('maison-tablet') === '1' ? '0' : '1'); applyTablet(); refresh(); },
-  async notif() { await Notification.requestPermission(); refresh(); },
+  async notif() { await Notification.requestPermission(); await syncPush(true); refresh(); },
+  'push-test'() { notify([state.me.id], { title: '🔔 Test Kids & Co', body: 'Les notifications fonctionnent sur cet appareil 🎉', tag: 'test' }, { includeSelf: true }); toast('Notification de test envoyée…'); },
 };
 
 document.addEventListener('click', (e) => {
@@ -2034,6 +2049,8 @@ document.addEventListener('submit', async (e) => {
     const box = $('.course-modal'), text = f.text.value.trim();
     f.text.value = '';
     save(backend.add('edtNotes', { courseId: box.dataset.id, date: box.dataset.date, type: f.type.value, text, author: state.me.id, ts: Date.now() }));
+    const crs = state.cours.find((x) => x.id === box.dataset.id);
+    notify('all', { title: `📚 ${crs ? crs.subject : 'Lycée'} — ${EDT_TYPES[f.type.value]?.label || 'Info'}`, body: `${cap(fmtShort(box.dataset.date))}${text ? ' : ' + text : ''}`, tag: 'edt-' + box.dataset.date, view: 'edt' });
     toast('Info ajoutée — toute la famille la voit');
   } else if (f.id === 'edt-settings-form') {
     const ab = f.ab.value, mon = mondayOf(new Date());
@@ -2045,6 +2062,7 @@ document.addEventListener('submit', async (e) => {
     const input = $('#note-input'), text = input.value.trim();
     if (!text) return;
     save(backend.add('notes', { text, important: state.noteImportant, done: false, author: state.me.id, ts: Date.now() }));
+    if (state.noteImportant) notify('all', { title: `⭐ À ne pas oublier`, body: `${text} — ${state.me.name}`, tag: 'note', view: 'important' });
     input.value = ''; state.noteImportant = false; refresh();
   } else if (f.id === 'member-form') submitMember(f);
   else if (f.id === 'family-form') $('#f-name').blur();
@@ -2308,6 +2326,57 @@ async function downloadQr() {
   a.href = c.toDataURL('image/png'); a.download = 'kids-and-co-qr.png'; a.click();
 }
 
+/* ================= Notifications push (même appli fermée) ================= */
+// Chaque appareil s'abonne aux notifications et enregistre son abonnement dans la famille (collection « push »),
+// associé à la personne connectée. Pour prévenir quelqu'un, l'appli demande au service Cloudflare (/api/push)
+// d'envoyer la notification aux appareils de cette personne.
+const VAPID_PUBLIC = 'BJdTOa_jiWM3s3qns3mb00x3Jt9egmlR2eftZNYbYCvye7ebg10Kf2uFCLi78DjxuvsZlHjtq7SDknef_8MyIMo';
+const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+async function syncPush(ask = false) {
+  if (!pushSupported() || !state.me || !state.family || backend.mode !== 'cloud') return;
+  if (Notification.permission !== 'granted') return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uToBytes(VAPID_PUBLIC) });
+    save(backend.set('push', deviceId, { memberId: state.me.id, sub: JSON.parse(JSON.stringify(sub)), kind: deviceKind(), updatedAt: Date.now() }));
+    if (ask) toast('🔔 Notifications activées sur cet appareil');
+  } catch (e) {
+    console.error(e);
+    if (ask) toast('Impossible d’activer les notifications sur cet appareil.', true);
+  }
+}
+function b64uToBytes(s) {
+  const b = atob(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4));
+  return Uint8Array.from(b, (c) => c.charCodeAt(0));
+}
+// targets : 'all' (toute la famille sauf moi) ou liste d'identifiants de membres.
+let pushWarned = false;
+async function notify(targets, { title, body = '', tag = '', view = '' }, { includeSelf = false } = {}) {
+  if (backend.mode !== 'cloud' || !state.me) return;
+  const ids = targets === 'all' ? state.members.map((m) => m.id) : targets;
+  const subs = state.push.filter((p) => p.sub?.endpoint && ids.includes(p.memberId) && (includeSelf || (p.memberId !== state.me.id && p.id !== deviceId)));
+  if (!subs.length) return;
+  try {
+    const r = await fetch('/api/push', { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ subs: subs.map((p) => p.sub), payload: { title, body: String(body).slice(0, 240), tag, url: view ? `./?vue=${view}` : './' } }) });
+    if (r.status === 503 && !pushWarned) { pushWarned = true; if (isParent(state.me)) toast('Les notifications push ne sont pas encore configurées sur Cloudflare (voir LISEZMOI).', true); }
+    if (!r.ok) return;
+    const { results = [] } = await r.json();
+    // Abonnements expirés (appli désinstallée…) : on les retire.
+    for (const res of results) if (res.status === 404 || res.status === 410) {
+      const dead = subs.find((p) => p.sub.endpoint === res.endpoint);
+      if (dead) save(backend.remove('push', dead.id));
+    }
+  } catch (e) { console.error(e); }
+}
+
+navigator.serviceWorker?.addEventListener('message', (e) => {
+  if (e.data?.type !== 'open-view') return;
+  const v = new URL(e.data.url).searchParams.get('vue');
+  if (v && state.me && NAV.some((n) => n[0] === v)) go(v);
+});
+
 /* ================= Aide notifications (iPhone / iPad) ================= */
 const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
@@ -2324,6 +2393,8 @@ function notifHelp(notif) {
 
 (async function boot() {
   // Ouverture via le QR code (?famille=CODE) : on garde le code pour l'écran de connexion.
+  const vue = new URLSearchParams(location.search).get('vue');
+  if (vue) { state.pendingView = vue; history.replaceState(null, '', location.pathname); }
   const qrCode = new URLSearchParams(location.search).get('famille');
   if (qrCode && /^[A-Z0-9]{8}$/i.test(qrCode)) { ls.set('kc-famille-qr', qrCode.toUpperCase()); history.replaceState(null, '', location.pathname); }
   applyTheme();

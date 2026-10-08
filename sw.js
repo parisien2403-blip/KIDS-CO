@@ -2,7 +2,7 @@
 // Pages et fichiers de l'appli : réseau d'abord (toujours la dernière version), cache si hors ligne.
 // SDK Firebase et polices Google : cache d'abord. Les échanges de données Firebase ne passent pas par ici.
 
-const CACHE_NAME = 'kidsandco-2.5'; // suivre le numéro de version.js
+const CACHE_NAME = 'kidsandco-2.6'; // suivre le numéro de version.js
 const CORE_ASSETS = ['./', './index.html', './style.css', './app.js', './config.js', './version.js', './qrcode.js', './manifest.json', './logo.png', './icon-192.png', './favicon.ico'];
 
 self.addEventListener('install', (event) => {
@@ -49,13 +49,25 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// Toucher une notification (rappel, message) ouvre l'appli.
+// Notification push reçue (même appli fermée).
+self.addEventListener('push', (event) => {
+  let d = {};
+  try { d = event.data ? event.data.json() : {}; } catch { d = { body: event.data && event.data.text() }; }
+  event.waitUntil(self.registration.showNotification(d.title || 'Kids & Co', {
+    body: d.body || '', icon: 'icon-192.png', badge: 'icon-192.png', tag: d.tag || undefined, renotify: !!d.tag,
+    data: { url: d.url || './' },
+  }));
+});
+
+// Toucher une notification ouvre l'appli (sur le bon onglet).
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  const url = new URL((event.notification.data && event.notification.data.url) || './', self.registration.scope).href;
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
       const win = list.find((c) => 'focus' in c);
-      return win ? win.focus() : self.clients.openWindow('./');
+      if (win) { win.postMessage({ type: 'open-view', url }); return win.focus(); }
+      return self.clients.openWindow(url);
     })
   );
 });

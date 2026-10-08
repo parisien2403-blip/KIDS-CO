@@ -103,3 +103,11 @@ La synchronisation entre appareils utilise **Firebase** (Google), dont l'offre g
 
 - Les notifications de nouveaux messages s'affichent quand l'appli est ouverte (ou en arrière-plan sur PC/Android). Des notifications « push » appli fermée sont possibles avec Firebase Cloud Messaging, mais demandent une étape de configuration en plus.
 - Pour une publication sur le Play Store / l'App Store, ce même code peut être emballé avec Capacitor. Ce n'est pas nécessaire : l'installation depuis le navigateur suffit.
+
+## 🔔 Notifications push (même appli fermée)
+
+Le fichier `worker.js` (service Cloudflare) envoie les notifications. Il a besoin d'**un secret**, à ajouter une seule fois :
+Cloudflare → *Workers et Pages* → **kids-co** → *Paramètres* → *Variables et secrets* → **Ajouter** → type **Secret**,
+nom **`VAPID_PRIVATE_KEY`**, valeur : la clé privée fournie à la mise en place (ne jamais la publier sur GitHub).
+
+Ensuite, sur chaque appareil : *Réglages → Notifications → Activer* (sur iPhone : appli installée sur l'écran d'accueil, iOS 16.4+), puis « 🔔 Tester ».
