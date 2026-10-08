@@ -844,3 +844,27 @@ img.avatar{width:42px;height:42px}
 .slot-arrow{color:var(--text3);font-weight:800}
 .add-slot{align-self:flex-start;margin-top:4px}
 @media (max-width:480px){ .slot-line{grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) auto;row-gap:6px;padding:10px;border-radius:14px;background:var(--field)} .slot-line select{grid-column:1 / -1;background-color:var(--surface-strong)} .slot-line input{background:var(--surface-strong)} }
+
+/* ---------- Emploi du temps façon scolaire (grille fixe) ---------- */
+.edt-modes{max-width:520px;margin:-8px 0 16px}
+.ab-seg{max-width:380px;margin:0 0 12px}
+.tt-tip{margin:0 0 10px}
+.tt-grid{display:grid;grid-template-columns:40px repeat(var(--n),minmax(0,1fr));gap:6px;background:var(--surface);border:1.5px solid var(--line);border-radius:var(--r-xl);padding:12px;box-shadow:var(--shadow)}
+.tt-head{height:38px;display:grid;place-items:center;font-weight:900;font-size:14.5px;border-radius:12px}
+.tt-col.today .tt-head{background:var(--coral);color:#fff}
+.tt-hours .tt-head{background:none}
+.tt-body{background:var(--surface-strong);cursor:copy}
+.tt-col.today .tt-body{border-color:var(--peach-line)}
+.edt-hline.half{border-top-style:dotted;opacity:.5}
+.tt-block{cursor:pointer}
+.tt-block b{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.tt-ab{position:absolute;top:4px;right:5px;font-style:normal;font-size:10px;font-weight:900;background:var(--c);color:#fff;border-radius:6px;padding:1px 5px}
+@media (max-width:760px){
+  .tt-grid{grid-template-columns:28px repeat(var(--n),minmax(0,1fr));gap:3px;padding:8px 6px;border-radius:18px;margin:0 -6px}
+  .tt-head{font-size:11.5px;height:30px;border-radius:9px}
+  .tt-block{left:1px;right:1px;padding:3px 4px;border-radius:7px;border-left-width:3px}
+  .tt-block b{font-size:10.5px;line-height:1.1}
+  .tt-block span{font-size:9px}
+  .tt-grid .edt-hourbody span{font-size:9.5px;right:1px}
+  .edt-modes button{font-size:13px;padding:9px 4px}
+}

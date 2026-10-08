@@ -2,6 +2,14 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '2.5', date: '2026-10-09', title: 'Emploi du temps façon scolaire',
+    items: [
+      'Nouvelle vue principale : grille fixe Lundi → Vendredi avec les heures, comme un emploi du temps de lycée',
+      'Touchez une case vide pour ajouter un cours à cette heure, ou un cours pour le modifier',
+      'Semaine A / B en un clic ; la vue « Cette semaine » garde les infos du jour (prof absent, contrôle…)',
+    ],
+  },
+  {
     version: '2.4', date: '2026-10-09', title: 'Emploi du temps : plusieurs jours par matière',
     items: ['Dans la fiche d’un cours, « Ajouter un autre jour » : tous les créneaux d’une matière en une fois, chacun avec ses horaires'],
   },

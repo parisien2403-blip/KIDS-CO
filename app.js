@@ -1091,6 +1091,7 @@ const VIEWS = {
   },
 
   edt() {
+    if ((state.edtMode || 'grille') === 'grille') return timetableView();
     const cfg = edtCfg(), mon = state.edtWeek || mondayOf(new Date());
     const nDays = cfg.saturday ? 6 : 5, days = Array.from({ length: nDays }, (_, i) => addDays(mon, i));
     const wt = weekType(mon), student = state.members.find((m) => m.id === cfg.studentId);
@@ -1118,13 +1119,13 @@ const VIEWS = {
     const sel = Math.min(state.edtDay ?? Math.max(0, Math.min(nDays - 1, (new Date().getDay() + 6) % 7)), nDays - 1);
     const selDate = ymd(days[sel]), selNotes = notesFor('', selDate), selList = coursesOn(selDate);
     const end = days[nDays - 1];
-    return `<div class="view-head"><div><div class="eyebrow">Emploi du temps${student ? ' de ' + esc(student.name) : ''}</div><h1>${esc(cfg.title)}</h1></div>
+    return `${edtHead()}
+      <div class="view-head" style="margin-top:-6px">
         <div class="cal-nav"><button class="btn btn-icon" data-action="edt-week" data-delta="-1" aria-label="Semaine précédente">${ICON.left}</button>
           <h2 class="edt-weeklabel">Du ${mon.getDate()} au ${end.getDate()} ${end.toLocaleDateString('fr-FR', { month: 'long' })}${wt ? ` <span class="week-ab">Semaine ${wt}</span>` : ''}</h2>
           <button class="btn btn-icon" data-action="edt-week" data-delta="1" aria-label="Semaine suivante">${ICON.right}</button>
           <button class="btn btn-sm" data-action="edt-week" data-delta="0">Cette semaine</button></div>
-        <div class="quick"><button class="btn btn-sm" data-action="edt-settings">⚙️ Réglages</button>
-          <button class="btn btn-primary" data-action="edit-course" data-id="">${ICON.plus} Cours</button></div></div>
+        <span class="small muted">Touchez un cours pour noter un prof absent, un contrôle…</span></div>
       ${state.cours.length ? '' : `<div class="card tint-lilac edt-empty"><h2>Créons l’emploi du temps 📚</h2><p class="muted">Ajoutez chaque cours une fois (matière, prof, salle, jour, horaires) : il se répète toutes les semaines.
         Ensuite, n’importe qui peut noter un changement pour un jour précis (prof absent, salle changée, contrôle…). Tout le monde le voit en direct.</p>
         <p class="muted small">Astuce : sur ordinateur, cliquez directement dans la grille à l’heure voulue pour ajouter un cours.</p></div>`}
@@ -1251,6 +1252,47 @@ function submitCompose(form) {
 }
 
 /* ================= Emploi du temps du lycée ================= */
+// Vue principale : la grille fixe, comme un emploi du temps scolaire (jours en colonnes, heures en lignes).
+function edtHead() {
+  const cfg = edtCfg(), student = state.members.find((m) => m.id === cfg.studentId), mode = state.edtMode || 'grille';
+  return `<div class="view-head"><div><div class="eyebrow">Emploi du temps${student ? ' de ' + esc(student.name) : ''}</div><h1>${esc(cfg.title)}</h1></div>
+      <div class="quick"><button class="btn btn-sm" data-action="edt-settings">⚙️ Réglages</button>
+        <button class="btn btn-primary" data-action="edit-course" data-id="">${ICON.plus} Cours</button></div></div>
+    <div class="seg edt-modes"><button class="${mode === 'grille' ? 'on' : ''}" data-action="edt-mode" data-m="grille">📚 Emploi du temps</button>
+      <button class="${mode === 'week' ? 'on' : ''}" data-action="edt-mode" data-m="week">📅 Cette semaine · infos</button></div>`;
+}
+function timetableView() {
+  const cfg = edtCfg(), nDays = cfg.saturday ? 6 : 5;
+  const usesAB = state.cours.some((c) => c.weeks === 'A' || c.weeks === 'B');
+  const ab = usesAB ? state.edtAB || weekType(mondayOf(new Date())) || 'A' : 'all';
+  const list = state.cours.filter((c) => ab === 'all' || !c.weeks || c.weeks === 'all' || c.weeks === ab);
+  let minH = 8, maxH = 18;
+  list.forEach((c) => { minH = Math.min(minH, Math.floor(toMin(c.start) / 60)); maxH = Math.max(maxH, Math.ceil(toMin(c.end) / 60)); });
+  const PPM = 1.05, height = (maxH - minH) * 60 * PPM, todayIdx = (new Date().getDay() + 6) % 7;
+  const lines = Array.from({ length: maxH - minH + 1 }, (_, i) => `<div class="edt-hline" style="top:${i * 60 * PPM}px"></div>`).join('')
+    + Array.from({ length: maxH - minH }, (_, i) => `<div class="edt-hline half" style="top:${(i * 60 + 30) * PPM}px"></div>`).join('');
+  const cols = Array.from({ length: nDays }, (_, i) => {
+    const day = i + 1, items = list.filter((c) => Number(c.day) === day).sort((a, b) => toMin(a.start) - toMin(b.start));
+    return `<div class="tt-col ${i === todayIdx ? 'today' : ''}"><div class="tt-head">${EDT_DAYS[i]}</div>
+      <div class="edt-colbody tt-body" style="height:${height}px" data-action="edt-slot" data-day="${day}" data-minh="${minH}" data-ppm="${PPM}">${lines}
+        ${items.map((c) => {
+          const top = (toMin(c.start) - minH * 60) * PPM, h = Math.max(26, (toMin(c.end) - toMin(c.start)) * PPM - 3);
+          return `<button class="edt-block tt-block" style="top:${top}px;height:${h}px;--c:${esc(c.color || '#4FB9E8')}" data-action="edit-course" data-id="${esc(c.id)}">
+            <b>${esc(c.subject)}</b><span>${esc(c.start)}–${esc(c.end)}</span>${c.room ? `<span>${esc(c.room)}</span>` : ''}${c.teacher && h > 70 ? `<span>${esc(c.teacher)}</span>` : ''}
+            ${c.weeks && c.weeks !== 'all' ? `<i class="tt-ab">${esc(c.weeks)}</i>` : ''}</button>`;
+        }).join('')}</div></div>`;
+  }).join('');
+  return `${edtHead()}
+    ${usesAB ? `<div class="seg ab-seg">${['A', 'B'].map((w) => `<button class="${ab === w ? 'on' : ''}" data-action="edt-ab" data-w="${w}">Semaine ${w}</button>`).join('')}
+      <button class="${ab === 'all' ? 'on' : ''}" data-action="edt-ab" data-w="all">Les deux</button></div>` : ''}
+    ${state.cours.length ? '<p class="small muted tt-tip">Touchez une case vide pour ajouter un cours à cette heure-là, ou un cours pour le modifier.</p>'
+      : `<div class="card tint-lilac edt-empty"><h2>Remplissons l’emploi du temps 📚</h2><p class="muted">Touchez la grille au bon jour et à la bonne heure pour ajouter un cours (ou le bouton « + Cours »). Une matière peut avoir plusieurs jours, chacun avec ses horaires.</p></div>`}
+    <div class="tt-grid" style="--n:${nDays}">
+      <div class="tt-hours"><div class="tt-head"></div><div class="edt-hourbody" style="height:${height}px">${Array.from({ length: maxH - minH + 1 }, (_, i) => `<span style="top:${i * 60 * PPM}px">${minH + i}h</span>`).join('')}</div></div>
+      ${cols}
+    </div>`;
+}
+
 // Les cours se répètent chaque semaine (ou semaine A / B). Les « infos » sont datées :
 // prof absent, cours annulé, salle changée, contrôle… Tout est partagé en direct.
 const EDT_TYPES = {
@@ -1874,6 +1916,8 @@ const ACTIONS = {
   'edt-day'(el) { state.edtDay = Number(el.dataset.i); refresh(); },
   'edt-settings': () => openEdtSettings(),
   'open-course'(el) { openCourse(el.dataset.id, el.dataset.date); },
+  'edt-mode'(el) { state.edtMode = el.dataset.m; refresh(); },
+  'edt-ab'(el) { state.edtAB = el.dataset.w; refresh(); },
   'edit-course'(el) {
     const c = state.cours.find((x) => x.id === el.dataset.id);
     openCourseEdit(c, { day: Number(el.dataset.day) || 1 });
@@ -1882,7 +1926,7 @@ const ACTIONS = {
     if (e.target !== el && !e.target.classList.contains('edt-hline')) return;
     const r = el.getBoundingClientRect();
     const min = Number(el.dataset.minh) * 60 + (e.clientY - r.top) / Number(el.dataset.ppm);
-    const m5 = Math.max(0, Math.round(min / 15) * 15);
+    const m5 = Math.max(0, Math.floor(min / 30) * 30); // case touchée → début à l'heure ou à la demi-heure
     openCourseEdit(null, { day: Number(el.dataset.day), start: `${pad(Math.floor(m5 / 60))}:${pad(m5 % 60)}` });
   },
   'delete-course'() {
