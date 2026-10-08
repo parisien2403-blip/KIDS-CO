@@ -2,6 +2,10 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '2.6.1', date: '2026-10-09', title: 'Petits écrans de PC',
+    items: ['La barre de gauche tient sur les écrans peu hauts : « Changer d’utilisateur » toujours visible'],
+  },
+  {
     version: '2.6', date: '2026-10-09', title: '🔔 Notifications sur le téléphone, même appli fermée',
     items: [
       'Message reçu, rendez-vous ajouté / modifié / supprimé, validation « À vérifier »',

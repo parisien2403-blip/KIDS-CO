@@ -868,3 +868,13 @@ img.avatar{width:42px;height:42px}
   .tt-grid .edt-hourbody span{font-size:9.5px;right:1px}
   .edt-modes button{font-size:13px;padding:9px 4px}
 }
+/* Barre latérale : défile si l'écran est peu haut (petits PC) */
+.sidebar{overflow-y:auto;scrollbar-width:thin}
+@media (max-height:820px) and (min-width:861px){
+  .brand{padding-bottom:12px}
+  .brand img{width:56px;height:56px;margin-bottom:6px}
+  .brand-name{font-size:20px}
+  .nav-btn{padding:9px 14px}
+  .me-card .mini-id{display:none}
+  .me-card{margin-top:12px}
+}
