@@ -481,6 +481,9 @@ function renderWho() {
 function renderWelcomeUnlinked() {
   state.me = null;
   $('#app').innerHTML = welcomeHtml({ linked: false });
+  // Arrivé en scannant le QR code : le code famille est déjà rempli.
+  const code = ls.get('kc-famille-qr');
+  if (code) { $('#w-family').value = code; $('#w-name').focus(); }
 }
 
 const norm = (x) => String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
@@ -1163,6 +1166,7 @@ const VIEWS = {
             <div class="invite">${esc(state.family.id)}</div>
             <button class="btn btn-sm" data-action="share-code">Partager le code</button>` : ''}
         </section>
+        ${shareCard()}
         <section class="card"><h2 style="margin-bottom:6px">À propos de Kids &amp; Co</h2>
           <div class="about-version"><img src="logo.png" alt=""><div><b>Version ${APP_VERSION}</b>
             <div class="small muted">Mise à jour du ${fmtVersionDate(CHANGELOG[0].date)} · ${esc(CHANGELOG[0].title)}</div></div></div>
@@ -1711,6 +1715,14 @@ const ACTIONS = {
   'switch-user': () => switchUser(),
   'login-maison': () => submitWelcome(true),
   'forgot-pin': () => openForgotPin(),
+  'qr-big': () => openQrBig(),
+  'qr-download': () => downloadQr(),
+  async 'share-link'() {
+    const url = appUrl(backend.mode === 'cloud' && state.qrWithCode !== false);
+    const text = `Rejoins la famille sur Kids & Co 🏠${state.family && backend.mode === 'cloud' ? ` (code famille : ${state.family.id})` : ''}`;
+    if (navigator.share) { try { await navigator.share({ title: 'Kids & Co', text, url }); } catch {} return; }
+    try { await navigator.clipboard.writeText(`${text}\n${url}`); toast('Lien copié 📋'); } catch { toast(url); }
+  },
   'toggle-eye'(el) {
     const input = el.parentElement.querySelector('input');
     input.type = input.type === 'password' ? 'text' : 'password';
@@ -1909,6 +1921,7 @@ document.addEventListener('change', async (e) => {
     t.value = '';
   }
   if (t.dataset.action === 'theme') { ls.set('maison-theme', t.value); applyTheme(); }
+  if (t.dataset.action === 'qr-code-toggle') { state.qrWithCode = t.checked; refresh(); }
   if (t.form?.id === 'event-form' && t.name === 'allDay') $('#time-row').classList.toggle('hidden', t.checked);
   if (t.form?.id === 'event-form' && t.name === 'repeat') $('#until-f').classList.toggle('hidden', t.value === 'none');
   if (t.form?.id === 'event-form' && t.name === 'alertOn') {
@@ -2172,7 +2185,62 @@ async function submitForgot(f) {
   }
 }
 
+/* ================= Partager l'appli (QR code) ================= */
+// Bibliothèque qrcode-generator (MIT, Kazuhiko Arase), fournie dans qrcode.js.
+const appUrl = (withCode) => location.origin + location.pathname.replace(/index\.html$/, '') + (withCode && state.family ? `?famille=${encodeURIComponent(state.family.id)}` : '');
+function qrSvg(text) {
+  if (typeof qrcode !== 'function') return '<div class="muted small">QR code indisponible</div>';
+  const q = qrcode(0, 'H'); // correction élevée : lisible malgré le logo au centre
+  q.addData(text);
+  q.make();
+  return q.createSvgTag({ cellSize: 4, margin: 8, scalable: true, alt: 'QR code Kids & Co' });
+}
+function shareCard() {
+  const cloud = backend.mode === 'cloud', withCode = cloud && state.qrWithCode !== false, url = appUrl(withCode);
+  return `<section class="card share-card"><h2 style="margin-bottom:6px">📲 Partager l’appli</h2>
+    <p class="muted small" style="margin:0 0 14px">Scannez ce QR code avec l’appareil photo d’un téléphone ou d’une tablette pour ouvrir Kids &amp; Co${withCode ? ', avec le code famille déjà rempli' : ''}.</p>
+    <button class="qr-box" data-action="qr-big" aria-label="Agrandir le QR code">${qrSvg(url)}<img src="logo.png" alt="" class="qr-logo"></button>
+    <div class="qr-url">${esc(url.replace(/^https?:\/\//, ''))}</div>
+    ${cloud ? `<label class="check-line" style="justify-content:center"><input type="checkbox" data-action="qr-code-toggle" ${withCode ? 'checked' : ''}> Inclure le code famille</label>` : ''}
+    <div class="quick" style="justify-content:center"><button class="btn btn-sm btn-primary" data-action="qr-big">🔍 Agrandir</button>
+      <button class="btn btn-sm" data-action="share-link">Partager le lien</button>
+      <button class="btn btn-sm" data-action="qr-download">Enregistrer l’image</button></div>
+  </section>`;
+}
+function openQrBig() {
+  const url = appUrl(backend.mode === 'cloud' && state.qrWithCode !== false);
+  $('#modal-root').innerHTML = `<div class="modal-backdrop" data-action="close-modal"><div class="modal qr-modal">
+    <img src="logo.png" alt="" class="qr-head-logo"><h2>Kids &amp; Co</h2><div class="eyebrow">${esc(state.family?.name || '')}</div>
+    <div class="qr-box big">${qrSvg(url)}<img src="logo.png" alt="" class="qr-logo"></div>
+    <p class="muted">Ouvrez l’appareil photo et visez le QR code</p>
+    <div class="modal-actions" style="justify-content:center"><button class="btn btn-primary" data-action="close-modal-btn">Fermer</button></div>
+  </div></div>`;
+}
+async function downloadQr() {
+  const url = appUrl(backend.mode === 'cloud' && state.qrWithCode !== false);
+  const svg = qrSvg(url).replace('<svg ', '<svg width="720" height="720" ');
+  const img = new Image(), logo = new Image();
+  img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  logo.src = 'logo.png';
+  await Promise.all([img.decode(), logo.decode()]).catch(() => {});
+  const c = document.createElement('canvas'); c.width = 800; c.height = 920;
+  const g = c.getContext('2d');
+  g.fillStyle = '#fff'; g.fillRect(0, 0, 800, 920);
+  g.drawImage(img, 40, 40, 720, 720);
+  g.fillStyle = '#fff'; g.fillRect(340, 340, 120, 120);
+  g.drawImage(logo, 350, 350, 100, 100);
+  g.fillStyle = '#22476B'; g.font = 'bold 44px sans-serif'; g.textAlign = 'center';
+  g.fillText('Kids & Co — ' + (state.family?.name || ''), 400, 830);
+  g.font = '26px sans-serif'; g.fillStyle = '#5E7891';
+  g.fillText('Scannez pour ouvrir l’appli', 400, 880);
+  const a = document.createElement('a');
+  a.href = c.toDataURL('image/png'); a.download = 'kids-and-co-qr.png'; a.click();
+}
+
 (async function boot() {
+  // Ouverture via le QR code (?famille=CODE) : on garde le code pour l'écran de connexion.
+  const qrCode = new URLSearchParams(location.search).get('famille');
+  if (qrCode && /^[A-Z0-9]{8}$/i.test(qrCode)) { ls.set('kc-famille-qr', qrCode.toUpperCase()); history.replaceState(null, '', location.pathname); }
   applyTheme();
   applyTablet();
   try {

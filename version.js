@@ -2,6 +2,14 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '2.3', date: '2026-10-09', title: 'QR code pour partager l’appli',
+    items: [
+      'Réglages → « 📲 Partager l’appli » : QR code à scanner avec l’appareil photo',
+      'Le QR code peut contenir le code famille : il est déjà rempli à l’ouverture',
+      'Agrandir, partager le lien ou enregistrer l’image du QR code',
+    ],
+  },
+  {
     version: '2.2', date: '2026-10-09', title: 'Code secret : oubli, confirmation et affichage',
     items: [
       '« 🔑 Code secret oublié ? » sur la page d’accueil : nouveau code avec l’e-mail et le mot de passe du compte famille',
