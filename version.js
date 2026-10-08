@@ -2,6 +2,10 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '2.3.1', date: '2026-10-09', title: 'Notifications sur iPhone',
+    items: ['Réglages explique comment activer les notifications sur iPhone / iPad (installer l’appli sur l’écran d’accueil)'],
+  },
+  {
     version: '2.3', date: '2026-10-09', title: 'QR code pour partager l’appli',
     items: [
       'Réglages → « 📲 Partager l’appli » : QR code à scanner avec l’appareil photo',

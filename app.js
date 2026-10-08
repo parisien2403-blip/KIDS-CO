@@ -1180,8 +1180,9 @@ const VIEWS = {
           <div class="switch-line"><b>Thème</b><select data-action="theme">
             ${[['auto', 'Automatique'], ['light', 'Clair'], ['dark', 'Sombre']].map(([v, l]) => `<option value="${v}" ${theme === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
           <div class="switch-line"><div><b>Notifications</b><div class="small muted">Alerte quand un message arrive et que l’appli est en arrière-plan.</div></div>
-            ${notif === 'granted' ? '<span class="small muted">Activées</span>' : notif === 'denied' ? '<span class="small muted">Bloquées par le navigateur</span>'
-              : notif === 'unsupported' ? '<span class="small muted">Non disponible</span>' : '<button class="btn btn-sm" data-action="notif">Activer</button>'}</div>
+            ${notif === 'granted' ? '<span class="small muted">Activées ✅</span>' : notif === 'denied' ? '<span class="small muted">Bloquées</span>'
+              : notif === 'unsupported' ? (isIOS() && !isStandalone() ? '<span class="small muted">À installer d’abord</span>' : '<span class="small muted">Non disponible</span>') : '<button class="btn btn-sm" data-action="notif">Activer</button>'}</div>
+          ${notifHelp(notif)}
           <div class="switch-line"><div><b>Installer l’appli</b><div class="small muted">iPhone/iPad : Partager → « Sur l’écran d’accueil ». Android/PC : menu du navigateur → « Installer l’application ».</div></div></div>
         </section>
         ${backend.mode === 'cloud' ? `<section class="card"><h2 style="margin-bottom:6px">Connexion de l’appareil</h2>
@@ -2235,6 +2236,20 @@ async function downloadQr() {
   g.fillText('Scannez pour ouvrir l’appli', 400, 880);
   const a = document.createElement('a');
   a.href = c.toDataURL('image/png'); a.download = 'kids-and-co-qr.png'; a.click();
+}
+
+/* ================= Aide notifications (iPhone / iPad) ================= */
+const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+function notifHelp(notif) {
+  if (notif === 'granted') return '';
+  if (isIOS() && !isStandalone()) return `<div class="notif-help"><b>📱 Sur iPhone / iPad, Apple n’autorise les notifications que dans l’appli installée :</b>
+    <ol><li>Ouvrez cette page dans <b>Safari</b> (iOS 16.4 ou plus récent)</li>
+      <li>Touchez <b>Partager</b> <span class="ios-share">⬆︎</span> puis <b>« Sur l’écran d’accueil »</b> → Ajouter</li>
+      <li>Ouvrez <b>Kids &amp; Co depuis l’icône</b>, reconnectez-vous, puis revenez ici et touchez <b>Activer</b></li></ol></div>`;
+  if (isIOS() && notif === 'unsupported') return '<div class="notif-help">Votre iPhone doit être en <b>iOS 16.4 ou plus récent</b> (Réglages → Général → Mise à jour logicielle).</div>';
+  if (notif === 'denied') return `<div class="notif-help">Les notifications ont été refusées. Pour les réactiver : ${isIOS() ? '<b>Réglages de l’iPhone → Notifications → Kids &amp; Co</b> → Autoriser' : 'cliquez sur le <b>cadenas</b> à gauche de l’adresse → Notifications → Autoriser'}, puis rechargez l’appli.</div>`;
+  return '';
 }
 
 (async function boot() {

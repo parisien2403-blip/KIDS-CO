@@ -833,3 +833,7 @@ img.avatar{width:42px;height:42px}
 .qr-head-logo{width:56px;height:56px;border-radius:16px}
 .qr-modal h2{font-size:28px !important;margin:8px 0 2px}
 .qr-modal .qr-box{margin:16px auto 10px}
+.notif-help{font-size:13.5px;line-height:1.45;background:var(--sky);border:1.5px solid var(--sky-line);border-radius:14px;padding:12px 14px;margin:-4px 0 10px}
+.notif-help ol{margin:6px 0 0;padding-left:20px}
+.notif-help li{margin:3px 0}
+.ios-share{display:inline-grid;place-items:center;width:20px;height:20px;border:1.5px solid currentColor;border-radius:5px;font-size:12px}
