@@ -31,6 +31,9 @@ const CATEGORIES = {
   rdv: '📅 Rendez-vous', sante: '🩺 Santé', ecole: '🎒 École', travail: '💼 Travail',
   anniv: '🎂 Anniversaire', loisir: '⚽ Loisirs', admin: '📄 Administratif', autre: '📌 Autre',
 };
+// Avatars proposés pour les profils (les enfants adorent choisir le leur).
+const EMOJIS = ['🦁', '🐼', '🦊', '🐱', '🐶', '🐸', '🦄', '🐙', '🐝', '🦋', '🐢', '🐬', '⭐', '🌈', '⚽', '🎮', '🎨', '🚀', '🎸', '🌸', '🍕', '🧁', '👑', '🏠'];
+const isParent = (m) => m && m.role !== 'enfant';
 const REPEATS = { none: 'Jamais', weekly: 'Chaque semaine', monthly: 'Chaque mois', yearly: 'Chaque année' };
 const DOW = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 
@@ -155,10 +158,11 @@ let renderedMsgTs = 0;
 const stopSubs = () => { unsubs.forEach((u) => u && u()); unsubs = []; };
 
 const member = (id) => state.members.find((m) => m.id === id) || { id, name: 'Ancien membre', color: '#999' };
-const lastSeenKey = () => 'maison-lastseen:' + (state.family?.id || '');
+const lastSeenKey = () => `maison-lastseen:${state.family?.id || ''}:${state.me?.id || ''}`;
+const profileKey = () => 'kc-profile:' + (state.family?.id || '');
 const unreadCount = () => {
   const seen = Number(ls.get(lastSeenKey(), 0));
-  return state.messages.filter((m) => m.author !== state.user.uid && m.ts > seen).length;
+  return state.messages.filter((m) => m.author !== state.me?.id && m.ts > seen).length;
 };
 function markSeen() {
   const last = state.messages[state.messages.length - 1];
@@ -208,7 +212,7 @@ function toast(text, err = false) {
   $('#toasts').append(el);
   setTimeout(() => el.remove(), err ? 6000 : 3500);
 }
-const avatar = (m) => `<span class="avatar" style="--c:${esc(m.color)}" title="${esc(m.name)}">${esc(initial(m.name))}</span>`;
+const avatar = (m) => `<span class="avatar ${m.emoji ? 'emo' : ''}" style="--c:${esc(m.color)}" title="${esc(m.name)}">${esc(m.emoji || initial(m.name))}</span>`;
 const avatars = (ids) => (ids && ids.length ? `<span class="avatars">${ids.map((id) => avatar(member(id))).join('')}</span>` : '');
 const colorPicker = (current) => `<div class="colors">${COLORS.map((c) =>
   `<button type="button" class="color-dot ${c === current ? 'on' : ''}" style="--c:${c}" data-action="pick-color" data-color="${c}" aria-label="Couleur"></button>`).join('')}</div>`;
@@ -243,57 +247,196 @@ const AUTH_ERRORS = {
   'auth/network-request-failed': 'Pas de connexion internet.', 'auth/too-many-requests': 'Trop d’essais, réessayez dans quelques minutes.',
 };
 
-function renderSetup(profile) {
-  const cloud = backend.mode === 'cloud';
-  const color = profile?.color || COLORS[Math.floor(Math.random() * COLORS.length)];
-  $('#app').innerHTML = `<div class="auth"><form class="card" id="setup-form" data-color="${color}" data-choice="create">
-    <div class="auth-logo"><img src="logo.png" alt=""><div><h1>Bienvenue !</h1><div class="muted">Présentez-vous à la famille</div></div></div>
-    <label class="field"><span>Votre prénom (ou « Maison » pour la tablette)</span><input type="text" name="name" value="${esc(profile?.name || '')}" maxlength="30" required></label>
-    <div class="field"><span>Votre couleur</span>${colorPicker(color)}</div>
-    ${cloud ? `<div class="seg" style="margin-top:8px"><button type="button" class="on" data-action="setup-choice" data-choice="create">Créer notre foyer</button>
-      <button type="button" data-action="setup-choice" data-choice="join">Rejoindre un foyer</button></div>
-      <label class="field" id="f-family"><span>Nom du foyer</span><input type="text" name="family" placeholder="Famille Martin" maxlength="40"></label>
-      <label class="field hidden" id="f-code"><span>Code d’invitation (dans Réglages, sur un appareil déjà installé)</span><input type="text" name="code" placeholder="ABCD2345" maxlength="8" autocapitalize="characters" style="text-transform:uppercase;letter-spacing:.15em"></label>`
-    : '<p class="demo-banner">Mode démo : les données restent sur cet appareil. Ouvrez un 2ᵉ onglet pour simuler une autre personne.</p>'}
+// Première connexion d'un appareil (mode synchronisé) : créer la famille ou la rejoindre.
+function renderFamilySetup() {
+  $('#app').innerHTML = `<div class="auth"><form class="card" id="setup-form" data-choice="create">
+    <div class="auth-logo"><img src="logo.png" alt=""><div><h1>Bienvenue !</h1><div class="muted">Reliez cet appareil à votre famille</div></div></div>
+    <div class="seg"><button type="button" class="on" data-action="setup-choice" data-choice="create">Créer notre famille</button>
+      <button type="button" data-action="setup-choice" data-choice="join">Rejoindre</button></div>
+    <label class="field" id="f-family"><span>Nom de la famille</span><input type="text" name="family" placeholder="Famille Martin" maxlength="40"></label>
+    <label class="field hidden" id="f-code"><span>Code d’invitation (Réglages, sur un appareil déjà installé)</span><input type="text" name="code" placeholder="ABCD2345" maxlength="8" autocapitalize="characters" style="text-transform:uppercase;letter-spacing:.15em"></label>
     <div class="error"></div>
-    <button class="btn btn-primary" style="width:100%">C’est parti</button>
-    ${cloud ? '<button type="button" class="link" data-action="logout">Changer de compte</button>' : ''}
+    <button class="btn btn-primary" style="width:100%">Continuer</button>
+    <button type="button" class="link" data-action="logout">Changer de compte</button>
   </form></div>`;
 }
 
 async function submitSetup(form) {
-  const fd = new FormData(form);
-  const name = fd.get('name').trim(), color = form.dataset.color, uid = state.user.uid;
-  const errEl = form.querySelector('.error');
-  const btn = form.querySelector('.btn-primary');
-  if (!name) return;
+  const fd = new FormData(form), uid = state.user.uid;
+  const errEl = form.querySelector('.error'), btn = form.querySelector('.btn-primary');
   btn.disabled = true; errEl.textContent = '';
   try {
-    let familyId = 'DEMO';
-    if (backend.mode === 'cloud') {
-      if (form.dataset.choice === 'join') {
-        familyId = String(fd.get('code') || '').trim().toUpperCase();
-        if (familyId.length !== 8) throw new Error('Le code fait 8 caractères.');
-        try { await backend.joinFamily(uid, familyId); } catch { throw new Error('Code introuvable. Vérifiez-le dans Réglages sur un appareil déjà connecté.'); }
-      } else {
-        familyId = await backend.createFamily(uid, String(fd.get('family') || '').trim() || 'Notre famille');
-      }
+    let familyId;
+    if (form.dataset.choice === 'join') {
+      familyId = String(fd.get('code') || '').trim().toUpperCase();
+      if (familyId.length !== 8) throw new Error('Le code fait 8 caractères.');
+      try { await backend.joinFamily(uid, familyId); } catch { throw new Error('Code introuvable. Vérifiez-le dans Réglages sur un appareil déjà connecté.'); }
+    } else {
+      familyId = await backend.createFamily(uid, String(fd.get('family') || '').trim() || 'Notre famille');
     }
-    await backend.saveProfile(uid, { name, color, familyId });
+    await backend.saveProfile(uid, { familyId });
     await enter(state.user);
   } catch (e) {
     errEl.textContent = e.message; btn.disabled = false;
   }
 }
 
+/* ================= Profils : « Qui est là ? » ================= */
+// Chaque membre (parent ou enfant) a son profil, protégé par un code secret à 4 chiffres facultatif.
+// L'appareil se souvient du dernier profil utilisé.
+async function hashPin(pin, memberId) {
+  const data = new TextEncoder().encode(`kidsandco:${state.family.id}:${memberId}:${pin}`);
+  const buf = await crypto.subtle.digest('SHA-256', data);
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+function renderWho() {
+  state.me = null;
+  closeModal();
+  if (!state.membersLoaded) {
+    $('#app').innerHTML = '<div class="splash"><img src="logo.png" alt="" width="96" height="96"><p class="wordmark">Kids &amp; Co</p></div>';
+    return;
+  }
+  if (!state.members.length) return renderFirstProfile();
+  $('#app').innerHTML = `<div class="auth who-screen"><div class="who-wrap">
+    <img class="who-logo" src="logo.png" alt="">
+    <div class="eyebrow">${esc(state.family.name)}</div>
+    <h1>Qui est là ?</h1>
+    <div class="profiles">
+      ${state.members.map((m) => `<button class="profile" style="--c:${esc(m.color)}" data-action="pick-profile" data-id="${esc(m.id)}">
+        <span class="profile-avatar">${esc(m.emoji || initial(m.name))}</span>
+        <span class="profile-name">${esc(m.name)}</span>
+        <span class="profile-tag">${m.pinHash ? '🔒 ' : ''}${isParent(m) ? 'Parent' : 'Enfant'}</span></button>`).join('')}
+      <button class="profile add" data-action="add-member-start"><span class="profile-avatar">${ICON.plus}</span><span class="profile-name">Ajouter</span><span class="profile-tag">Nouveau membre</span></button>
+    </div>
+    ${backend.mode === 'cloud' ? '<button class="link" data-action="logout">Déconnecter cet appareil</button>'
+      : '<p class="demo-banner" style="display:inline-block">Mode démo : les profils restent sur cet appareil.</p>'}
+  </div></div>`;
+}
+
+function renderFirstProfile() {
+  $('#app').innerHTML = `<div class="auth"><div class="card">
+    <div class="auth-logo"><img src="logo.png" alt=""><div><h1>Bienvenue !</h1><div class="muted">Créez le premier profil : le vôtre (parent).<br>Vous ajouterez ensuite votre conjoint(e) et les enfants.</div></div></div>
+    <button class="btn btn-primary" style="width:100%" data-action="first-profile">Créer mon profil</button>
+  </div></div>`;
+}
+
+function startAs(m) {
+  state.me = m;
+  ls.set(profileKey(), m.id);
+  state.view = 'accueil';
+  closeModal();
+  renderShell();
+  markSeen();
+  toast(`Bonjour ${m.name} ${m.emoji || '👋'}`);
+}
+
+function switchUser() {
+  ls.del(profileKey());
+  renderWho();
+}
+
+/* Pavé numérique pour le code secret */
+let pin = null; // { purpose: 'login' | 'parent', member, digits, tries, onOk }
+function openPin(opts) {
+  pin = { digits: '', tries: 0, ...opts };
+  const m = pin.member;
+  const title = pin.purpose === 'parent' ? 'Code d’un parent' : `Bonjour ${esc(m.name)} !`;
+  const sub = pin.purpose === 'parent' ? 'Seul un parent peut ajouter un membre.' : 'Tape ton code secret';
+  $('#modal-root').innerHTML = `<div class="modal-backdrop" data-action="close-modal"><div class="modal pin-modal" id="pin-modal">
+    ${m ? `<span class="profile-avatar sm" style="--c:${esc(m.color)}">${esc(m.emoji || initial(m.name))}</span>` : `<span class="profile-avatar sm" style="--c:#22476B">🔒</span>`}
+    <h2>${title}</h2><p class="muted" id="pin-sub">${sub}</p>
+    <div class="pin-dots" id="pin-dots">${'<span class="pin-dot"></span>'.repeat(4)}</div>
+    <div class="keypad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map((k) => `<button class="key" data-action="pin-key" data-k="${k}">${k}</button>`).join('')}
+      <button class="key ghost" data-action="close-modal-btn">Annuler</button><button class="key" data-action="pin-key" data-k="0">0</button>
+      <button class="key ghost" data-action="pin-key" data-k="del" aria-label="Effacer">⌫</button></div>
+  </div></div>`;
+}
+async function pinKey(k) {
+  if (!pin || pin.busy) return;
+  if (pin.lockedUntil && Date.now() < pin.lockedUntil) return;
+  if (k === 'del') pin.digits = pin.digits.slice(0, -1);
+  else if (pin.digits.length < 4) pin.digits += k;
+  $('#pin-dots').querySelectorAll('.pin-dot').forEach((d, i) => d.classList.toggle('on', i < pin.digits.length));
+  if (pin.digits.length < 4) return;
+  pin.busy = true;
+  const candidates = pin.purpose === 'parent' ? state.members.filter((m) => isParent(m) && m.pinHash) : [pin.member];
+  let ok = false;
+  for (const m of candidates) if ((await hashPin(pin.digits, m.id)) === m.pinHash) ok = true;
+  pin.busy = false;
+  if (ok) { const done = pin.onOk; pin = null; closeModal(); done(); return; }
+  pin.tries++; pin.digits = '';
+  const box = $('#pin-modal');
+  box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake');
+  $('#pin-dots').querySelectorAll('.pin-dot').forEach((d) => d.classList.remove('on'));
+  if (pin.tries >= 5) {
+    pin.lockedUntil = Date.now() + 30000; pin.tries = 0;
+    $('#pin-sub').textContent = 'Trop d’essais : attends 30 secondes.';
+    setTimeout(() => { if (pin) $('#pin-sub').textContent = 'Tape ton code secret'; }, 30000);
+  } else $('#pin-sub').textContent = 'Ce n’est pas le bon code, réessaie.';
+}
+
+/* Fiche d'un membre (création ou modification) */
+function openMemberModal(m, { first = false } = {}) {
+  const isNew = !m;
+  const meParent = first || isParent(state.me);
+  m = m || { name: '', role: first ? 'parent' : 'enfant', color: COLORS[state.members.length % COLORS.length], emoji: '' };
+  const canRole = meParent && !first;
+  $('#modal-root').innerHTML = `<div class="modal-backdrop" data-action="close-modal"><form class="modal" id="member-form"
+      data-id="${esc(m.id || '')}" data-color="${esc(m.color)}" data-emoji="${esc(m.emoji || '')}" data-role="${esc(isParent(m) ? 'parent' : 'enfant')}" data-first="${first ? 1 : ''}">
+    <h2 style="margin-bottom:16px">${first ? 'Mon profil' : isNew ? 'Nouveau membre' : 'Modifier le profil'}</h2>
+    <label class="field"><span>Prénom</span><input type="text" name="name" value="${esc(m.name)}" maxlength="30" required></label>
+    ${canRole ? `<div class="field"><span>C’est…</span><div class="seg" style="margin:0">
+      <button type="button" class="${isParent(m) ? 'on' : ''}" data-action="member-role" data-role="parent">Un parent</button>
+      <button type="button" class="${isParent(m) ? '' : 'on'}" data-action="member-role" data-role="enfant">Un enfant</button></div></div>` : ''}
+    <div class="field"><span>Avatar</span><div class="emojis">
+      <button type="button" class="emoji-opt ${m.emoji ? '' : 'on'}" data-action="pick-emoji" data-emoji="" title="Initiale">Aa</button>
+      ${EMOJIS.map((e) => `<button type="button" class="emoji-opt ${m.emoji === e ? 'on' : ''}" data-action="pick-emoji" data-emoji="${e}">${e}</button>`).join('')}</div></div>
+    <div class="field"><span>Couleur</span>${colorPicker(m.color)}</div>
+    <label class="field"><span>Code secret (4 chiffres${first ? ', conseillé pour un parent' : ', facultatif'})</span>
+      <input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="new-password"
+        placeholder="${m.pinHash ? '•••• (laisser vide pour garder le code actuel)' : 'Ex. 2580'}"></label>
+    ${m.pinHash ? '<label class="check-line"><input type="checkbox" name="nopin"> Supprimer le code secret</label>' : ''}
+    <div class="error"></div>
+    <div class="modal-actions">${!isNew && meParent && m.id !== state.me?.id ? `<button type="button" class="btn btn-danger" data-action="delete-member">${ICON.trash} Retirer</button>` : ''}
+      <span class="grow"></span>${first ? '' : '<button type="button" class="btn" data-action="close-modal-btn">Annuler</button>'}<button class="btn btn-primary">Enregistrer</button></div>
+  </form></div>`;
+  setTimeout(() => $('#member-form [name=name]')?.focus(), 50);
+}
+
+async function submitMember(form) {
+  const fd = new FormData(form), errEl = form.querySelector('.error');
+  const first = !!form.dataset.first;
+  const id = form.dataset.id || 'm' + newCode().toLowerCase();
+  const old = state.members.find((x) => x.id === id);
+  const name = String(fd.get('name')).trim(), pinVal = String(fd.get('pin') || '');
+  const role = first ? 'parent' : form.dataset.role;
+  if (!name) return;
+  if (pinVal && !/^\d{4}$/.test(pinVal)) { errEl.textContent = 'Le code secret doit faire exactement 4 chiffres.'; return; }
+  if (old && isParent(old) && role === 'enfant' && state.members.filter(isParent).length === 1) {
+    errEl.textContent = 'Il faut garder au moins un parent dans la famille.'; return;
+  }
+  const data = { name, role, color: form.dataset.color, emoji: form.dataset.emoji, createdAt: old?.createdAt || Date.now() };
+  try {
+    if (pinVal) data.pinHash = await hashPin(pinVal, id);
+    else if (fd.get('nopin')) data.pinHash = null;
+  } catch { errEl.textContent = 'Le code secret nécessite une connexion sécurisée (https).'; return; }
+  save(backend.set('membres', id, data));
+  closeModal();
+  if (first) return startAs({ id, ...old, ...data });
+  if (state.me?.id === id) { state.me = { ...state.me, ...data }; refresh(); }
+  toast(old ? 'Profil mis à jour' : `${name} a rejoint la famille 🎉`);
+}
+
 /* ================= Démarrage ================= */
 async function enter(user) {
   stopSubs();
   state.user = user;
+  state.me = null;
   if (!user) return renderLogin();
-  let profile, family;
+  let family;
   try {
-    profile = await backend.getProfile(user.uid);
+    const profile = backend.mode === 'demo' ? { familyId: 'DEMO' } : await backend.getProfile(user.uid);
     family = profile?.familyId ? await backend.getFamily(profile.familyId) : null;
   } catch (e) {
     console.error(e);
@@ -302,27 +445,43 @@ async function enter(user) {
       <button class="btn btn-primary" data-action="reload">Réessayer</button> <button class="btn" data-action="logout">Se déconnecter</button></div></div>`;
     return;
   }
-  if (!profile?.name || !family) return renderSetup(profile);
+  if (!family) return renderFamilySetup();
 
-  state.me = { name: profile.name, color: profile.color };
   state.family = family;
   state.loadedMessages = false;
+  state.membersLoaded = false;
+  state.autoLogin = ls.get('kc-ask') !== '1';
   backend.setFamily(family.id);
-  save(backend.set('membres', user.uid, { name: profile.name, color: profile.color }));
-
-  renderShell();
+  renderWho();
   unsubs.push(
-    backend.subscribe('membres', (list) => { state.members = list.sort((a, b) => a.name.localeCompare(b.name)); refresh(); }),
+    backend.subscribe('membres', onMembers),
     backend.subscribe('events', (list) => { state.events = list; refresh(); }),
     backend.subscribe('notes', (list) => { state.notes = list; refresh(); }),
     backend.subscribe('messages', onMessages, { limit: 300 }),
   );
 }
 
+function onMembers(list) {
+  state.members = list.filter((m) => m.name).sort((a, b) => (isParent(b) - isParent(a)) || a.name.localeCompare(b.name));
+  const firstLoad = !state.membersLoaded;
+  state.membersLoaded = true;
+  if (state.me) {
+    const m = state.members.find((x) => x.id === state.me.id);
+    if (!m) { toast('Ce profil a été retiré de la famille.', true); return switchUser(); }
+    state.me = m;
+    return refresh();
+  }
+  if (firstLoad && state.autoLogin) {
+    const m = state.members.find((x) => x.id === ls.get(profileKey()));
+    if (m) return startAs(m);
+  }
+  if (!$('#modal-root').innerHTML) renderWho();
+}
+
 function onMessages(list) {
   list.sort((a, b) => a.ts - b.ts);
   const prevMax = state.messages.length ? state.messages[state.messages.length - 1].ts : 0;
-  const fresh = state.loadedMessages ? list.filter((m) => m.ts > prevMax && m.author !== state.user.uid) : [];
+  const fresh = state.loadedMessages ? list.filter((m) => m.ts > prevMax && m.author !== state.me?.id) : [];
   state.messages = list;
   state.loadedMessages = true;
   for (const m of fresh) {
@@ -349,9 +508,10 @@ function navButtons() {
 function renderShell() {
   $('#app').innerHTML = `<div class="shell">
     <nav class="sidebar"><div class="brand"><img src="logo.png" alt=""><span class="brand-name">Kids &amp; Co</span><small id="fam-name">${esc(state.family.name)}</small></div>
-      <div id="nav-side"></div></nav>
+      <div id="nav-side"></div>
+      <div class="me-card" id="me-card"></div></nav>
     <header class="topbar"><img src="logo.png" alt=""><div><span class="brand-name">Kids &amp; Co</span><small id="fam-name-top">${esc(state.family.name)}</small></div>
-      <button class="me-btn" data-action="nav" data-view="reglages" aria-label="Réglages" id="me-btn"></button></header>
+      <button class="me-btn" data-action="switch-user" aria-label="Changer d’utilisateur" id="me-btn"></button></header>
     <main id="main"></main>
     <nav class="tabbar" id="nav-tab"></nav>
   </div>`;
@@ -361,12 +521,14 @@ function renderShell() {
 // Redessine la vue en gardant ce que l'utilisateur est en train de taper.
 function refresh() {
   const main = $('#main');
-  if (!main) return;
+  if (!main || !state.me) return;
   $('#nav-side').innerHTML = navButtons();
   $('#nav-tab').innerHTML = navButtons();
   $('#fam-name').textContent = state.family.name;
   $('#fam-name-top').textContent = state.family.name;
   $('#me-btn').innerHTML = avatar(state.me);
+  $('#me-card').innerHTML = `${avatar(state.me)}<div><b>${esc(state.me.name)}</b><small>${isParent(state.me) ? 'Parent' : 'Enfant'}</small></div>
+    <button class="btn btn-sm" data-action="switch-user">Changer</button>`;
   document.title = (unreadCount() ? `(${unreadCount()}) ` : '') + 'Kids & Co';
 
   const kept = {};
@@ -475,7 +637,7 @@ const VIEWS = {
         const label = day === todayStr() ? 'Aujourd’hui' : day === ymd(addDays(new Date(), -1)) ? 'Hier' : fmtLong(parseYmd(day));
         html += `<div class="day-sep">${esc(label)}</div>`;
       }
-      const mine = m.author === state.user.uid, a = member(m.author);
+      const mine = m.author === state.me.id, a = member(m.author);
       html += `<div class="msg ${mine ? 'mine' : ''} ${popAfter && m.ts > popAfter ? 'pop' : ''}">${mine ? '' : `<span class="msg-author" style="--c:${esc(a.color)}">${esc(a.name)}</span>`}${esc(m.text)}<span class="msg-time">${fmtTime(m.ts)}</span></div>`;
     }
     return `<div class="view-head" style="margin-bottom:8px"><div><div class="eyebrow">${esc(state.family.name)}</div><h1>Messages</h1></div><div class="avatars">${state.members.map(avatar).join('')}</div></div>
@@ -507,22 +669,25 @@ const VIEWS = {
     return `<div class="view-head"><div><div class="eyebrow">Profil, foyer et appareil</div><h1>Réglages</h1></div></div>
       <div class="settings">
         <section class="card"><h2 style="margin-bottom:14px">Mon profil</h2>
-          <form id="profile-form" data-color="${esc(state.me.color)}">
-            <label class="field"><span>Prénom</span><input type="text" id="p-name" value="${esc(state.me.name)}" maxlength="30" required></label>
-            <div class="field"><span>Couleur</span>${colorPicker(state.me.color)}</div>
-            <button class="btn btn-primary">Enregistrer</button></form></section>
-        <section class="card"><h2>Notre foyer</h2>
-          ${backend.mode === 'cloud' ? `<p class="muted small" style="margin:10px 0 0">Code d’invitation à donner aux autres membres pour qu’ils rejoignent le foyer :</p>
+          <div class="member-line big">${avatar(state.me)}<div><b>${esc(state.me.name)}</b><div class="small muted">${isParent(state.me) ? 'Parent' : 'Enfant'}${state.me.pinHash ? ' · 🔒 code secret' : ' · sans code secret'}</div></div></div>
+          <div class="quick" style="margin-top:12px"><button class="btn btn-primary btn-sm" data-action="edit-member" data-id="${esc(state.me.id)}">Modifier mon profil</button>
+            <button class="btn btn-sm" data-action="switch-user">Changer d’utilisateur</button></div></section>
+        <section class="card"><h2 style="margin-bottom:10px">La famille</h2>
+          ${state.members.map((m) => `<div class="member-line">${avatar(m)}<div style="flex:1"><b>${esc(m.name)}</b>${m.id === state.me.id ? ' <span class="muted small">(vous)</span>' : ''}
+              <div class="small muted">${isParent(m) ? 'Parent' : 'Enfant'}${m.pinHash ? ' · 🔒' : ''}</div></div>
+            ${isParent(state.me) || m.id === state.me.id ? `<button class="btn btn-sm" data-action="edit-member" data-id="${esc(m.id)}">Modifier</button>` : ''}</div>`).join('')}
+          ${isParent(state.me) ? `<button class="btn btn-sm" style="margin-top:10px" data-action="add-member">${ICON.plus} Ajouter un membre</button>` : ''}
+          <form id="family-form" style="margin-top:18px"><label class="field"><span>Nom de la famille</span>
+            <input type="text" id="f-name" value="${esc(state.family.name)}" maxlength="40" ${isParent(state.me) ? '' : 'disabled'}></label></form>
+          ${backend.mode === 'cloud' ? `<p class="muted small" style="margin:4px 0 0">Code pour connecter un nouvel appareil (téléphone, tablette, PC) à la famille :</p>
             <div class="invite">${esc(state.family.id)}</div>
-            <button class="btn btn-sm" data-action="share-code">Partager le code</button>` : '<p class="muted small">En mode démo, le foyer est local à cet appareil.</p>'}
-          <form id="family-form" style="margin-top:16px"><label class="field"><span>Nom du foyer</span>
-            <input type="text" id="f-name" value="${esc(state.family.name)}" maxlength="40"></label></form>
-          <div class="small muted" style="font-weight:650;margin-bottom:4px">Membres</div>
-          ${state.members.map((m) => `<div class="member-line">${avatar(m)}<span>${esc(m.name)}${m.id === state.user.uid ? ' <span class="muted small">(vous)</span>' : ''}</span></div>`).join('')}
+            <button class="btn btn-sm" data-action="share-code">Partager le code</button>` : ''}
         </section>
         <section class="card"><h2 style="margin-bottom:6px">Cet appareil</h2>
           <div class="switch-line"><div><b>Mode tablette de la maison</b><div class="small muted">Écran toujours allumé, retour à l’accueil après 2 min.</div></div>
             <button class="btn btn-sm ${tablet ? 'btn-primary' : ''}" data-action="toggle-tablet">${tablet ? 'Activé' : 'Activer'}</button></div>
+          <div class="switch-line"><div><b>Demander « Qui est là ? » à chaque ouverture</b><div class="small muted">Conseillé sur la tablette de la cuisine.</div></div>
+            <button class="btn btn-sm ${ls.get('kc-ask') === '1' ? 'btn-primary' : ''}" data-action="toggle-ask">${ls.get('kc-ask') === '1' ? 'Activé' : 'Activer'}</button></div>
           <div class="switch-line"><b>Thème</b><select data-action="theme">
             ${[['auto', 'Automatique'], ['light', 'Clair'], ['dark', 'Sombre']].map(([v, l]) => `<option value="${v}" ${theme === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
           <div class="switch-line"><div><b>Notifications</b><div class="small muted">Alerte quand un message arrive et que l’appli est en arrière-plan.</div></div>
@@ -530,9 +695,9 @@ const VIEWS = {
               : notif === 'unsupported' ? '<span class="small muted">Non disponible</span>' : '<button class="btn btn-sm" data-action="notif">Activer</button>'}</div>
           <div class="switch-line"><div><b>Installer l’appli</b><div class="small muted">iPhone/iPad : Partager → « Sur l’écran d’accueil ». Android/PC : menu du navigateur → « Installer l’application ».</div></div></div>
         </section>
-        <section class="card"><h2 style="margin-bottom:6px">Compte</h2>
-          <p class="muted small">${backend.mode === 'cloud' ? 'Connecté : ' + esc(state.user.email) : 'Mode démo (pas de compte).'}</p>
-          <button class="btn btn-danger" data-action="logout">${backend.mode === 'cloud' ? 'Se déconnecter' : 'Changer de personne'}</button></section>
+        ${backend.mode === 'cloud' ? `<section class="card"><h2 style="margin-bottom:6px">Connexion de l’appareil</h2>
+          <p class="muted small">Cet appareil est relié à la famille via : ${esc(state.user.email)}</p>
+          <button class="btn btn-danger" data-action="logout">Déconnecter cet appareil</button></section>` : ''}
       </div>`;
   },
 };
@@ -583,7 +748,7 @@ function submitEvent(form) {
   if (!data.title || !data.date) return;
   const id = form.dataset.id;
   if (id) save(backend.update('events', id, data));
-  else save(backend.add('events', { ...data, createdBy: state.user.uid, ts: Date.now() }));
+  else save(backend.add('events', { ...data, createdBy: state.me.id, ts: Date.now() }));
   state.selected = data.date;
   closeModal();
   toast(id ? 'Rendez-vous modifié' : 'Rendez-vous ajouté — visible sur tous les appareils');
@@ -612,12 +777,44 @@ const ACTIONS = {
     form.querySelectorAll('.color-dot').forEach((b) => b.classList.toggle('on', b === el));
   },
   async logout() {
-    if (backend.mode === 'cloud' && state.me && !confirm('Se déconnecter de cet appareil ?')) return;
+    if (state.family && !confirm('Déconnecter cet appareil de la famille ?')) return;
     stopSubs(); await backend.signOut();
   },
+  'switch-user': () => switchUser(),
+  'pick-profile'(el) {
+    const m = state.members.find((x) => x.id === el.dataset.id);
+    if (!m) return;
+    if (m.pinHash) openPin({ purpose: 'login', member: m, onOk: () => startAs(m) });
+    else startAs(m);
+  },
+  'pin-key': (el) => pinKey(el.dataset.k),
+  'close-modal-btn': () => { pin = null; closeModal(); },
+  'first-profile': () => openMemberModal(null, { first: true }),
+  'add-member-start'() {
+    if (state.members.some((m) => isParent(m) && m.pinHash)) openPin({ purpose: 'parent', onOk: () => openMemberModal(null) });
+    else openMemberModal(null);
+  },
+  'add-member': () => openMemberModal(null),
+  'edit-member'(el) { const m = state.members.find((x) => x.id === el.dataset.id); if (m) openMemberModal(m); },
+  'member-role'(el) {
+    const form = el.closest('form');
+    form.dataset.role = el.dataset.role;
+    form.querySelectorAll('[data-action=member-role]').forEach((b) => b.classList.toggle('on', b === el));
+  },
+  'pick-emoji'(el) {
+    const form = el.closest('form');
+    form.dataset.emoji = el.dataset.emoji;
+    form.querySelectorAll('.emoji-opt').forEach((b) => b.classList.toggle('on', b === el));
+  },
+  'delete-member'() {
+    const id = $('#member-form').dataset.id, m = state.members.find((x) => x.id === id);
+    if (!m || !confirm(`Retirer ${m.name} de la famille ? Ses messages et rendez-vous restent visibles.`)) return;
+    save(backend.remove('membres', id)); closeModal(); toast(`${m.name} a été retiré(e)`);
+  },
+  'toggle-ask'() { ls.set('kc-ask', ls.get('kc-ask') === '1' ? '0' : '1'); refresh(); },
   'new-event': (el) => openEventModal(null, el.dataset.date),
   'edit-event': (el) => { const ev = state.events.find((x) => x.id === el.dataset.id); if (ev) openEventModal(ev); },
-  'close-modal': (el, e) => { if (e.target === el) closeModal(); },
+  'close-modal': (el, e) => { if (e.target === el && !$('#member-form[data-first="1"]')) { pin = null; closeModal(); } },
   'toggle-who': (el) => el.classList.toggle('on'),
   'delete-event'() {
     const id = $('#event-form').dataset.id;
@@ -687,23 +884,17 @@ document.addEventListener('submit', async (e) => {
   else if (f.id === 'note-form') {
     const input = $('#note-input'), text = input.value.trim();
     if (!text) return;
-    save(backend.add('notes', { text, important: state.noteImportant, done: false, author: state.user.uid, ts: Date.now() }));
+    save(backend.add('notes', { text, important: state.noteImportant, done: false, author: state.me.id, ts: Date.now() }));
     input.value = ''; state.noteImportant = false; refresh();
-  } else if (f.id === 'profile-form') {
-    const name = $('#p-name').value.trim(), color = f.dataset.color;
-    if (!name) return;
-    state.me = { name, color };
-    save(backend.saveProfile(state.user.uid, { name, color }));
-    save(backend.set('membres', state.user.uid, { name, color }));
-    toast('Profil enregistré');
-  } else if (f.id === 'family-form') $('#f-name').blur();
+  } else if (f.id === 'member-form') submitMember(f);
+  else if (f.id === 'family-form') $('#f-name').blur();
 });
 
 function sendMessage() {
   const input = $('#msg-input'), text = input.value.trim();
   if (!text) return;
   input.value = '';
-  save(backend.add('messages', { text, author: state.user.uid, ts: Date.now() }));
+  save(backend.add('messages', { text, author: state.me.id, ts: Date.now() }));
   input.focus();
 }
 function autoGrow(el) { if (!el) return; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 140) + 'px'; }
@@ -711,7 +902,9 @@ document.addEventListener('input', (e) => { if (e.target.id === 'msg-input') aut
 document.addEventListener('keydown', (e) => {
   // Entrée envoie le message, Maj+Entrée fait un retour à la ligne.
   if (e.target.id === 'msg-input' && e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendMessage(); }
-  if (e.key === 'Escape' && $('#modal-root').innerHTML) closeModal();
+  if (pin && /^[0-9]$/.test(e.key)) { e.preventDefault(); pinKey(e.key); return; }
+  if (pin && e.key === 'Backspace') { e.preventDefault(); pinKey('del'); return; }
+  if (e.key === 'Escape' && $('#modal-root').innerHTML && !$('#member-form[data-first="1"]')) { pin = null; closeModal(); }
 });
 
 /* ================= Thème, horloge, mode tablette ================= */

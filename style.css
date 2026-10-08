@@ -335,3 +335,61 @@ body.tablet .card h2{font-size:23px}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none !important;transition:none !important}
 }
+
+/* ---------- Profils : « Qui est là ? » ---------- */
+.who-screen{text-align:center}
+.who-wrap{width:min(860px,100%);display:flex;flex-direction:column;align-items:center;animation:rise .5s cubic-bezier(.2,.8,.2,1) both}
+.who-logo{width:84px;height:84px;border-radius:22px;box-shadow:0 14px 30px -12px rgba(34,71,107,.55);margin-bottom:18px}
+.who-screen h1{font-size:clamp(34px,5vw,48px)}
+.profiles{display:flex;flex-wrap:wrap;justify-content:center;gap:26px 22px;margin:34px 0 26px}
+.profile{border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:8px;width:132px;padding:0}
+.profile-avatar{width:116px;height:116px;border-radius:34px;display:grid;place-items:center;font-size:56px;font-weight:900;color:#fff;
+  background:linear-gradient(145deg,color-mix(in srgb,var(--c) 55%,#fff),var(--c));box-shadow:0 16px 30px -14px var(--c);transition:transform .25s cubic-bezier(.2,.8,.2,1)}
+.profile:hover .profile-avatar,.profile:focus-visible .profile-avatar{transform:translateY(-5px) scale(1.04)}
+.profile-name{font-weight:800;font-size:18px;margin-top:4px}
+.profile-tag{font-size:12.5px;font-weight:700;color:var(--text2)}
+.profile.add .profile-avatar{background:transparent;border:2.5px dashed var(--text3);color:var(--text2);box-shadow:none}
+.profile.add .profile-avatar svg{width:40px;height:40px}
+.profile-avatar.sm{width:84px;height:84px;border-radius:26px;font-size:42px;margin:0 auto 12px}
+@media (max-width:600px){
+  .profiles{gap:20px 14px}
+  .profile{width:100px}
+  .profile-avatar{width:88px;height:88px;border-radius:28px;font-size:42px}
+  .profile-name{font-size:16px}
+}
+
+/* Pavé du code secret */
+.pin-modal{width:min(380px,100%);text-align:center}
+.pin-modal h2{font-size:26px !important}
+.pin-dots{display:flex;gap:16px;justify-content:center;margin:20px 0 24px}
+.pin-dot{width:16px;height:16px;border-radius:50%;border:2px solid var(--text3);transition:all .15s}
+.pin-dot.on{background:var(--text);border-color:var(--text);transform:scale(1.1)}
+.keypad{display:grid;grid-template-columns:repeat(3,76px);gap:14px;justify-content:center}
+.key{height:76px;border-radius:50%;border:1.5px solid var(--line);background:var(--field);font-size:28px;font-weight:700;transition:transform .1s,background .15s}
+.key:active{transform:scale(.92);background:var(--accent-soft)}
+.key.ghost{background:none;border-color:transparent;font-size:15px;color:var(--text2)}
+.key.ghost[data-k=del]{font-size:24px}
+.shake{animation:shake .4s}
+@keyframes shake{20%,60%{transform:translateX(-10px)}40%,80%{transform:translateX(10px)}}
+
+/* Choix de l'avatar */
+.emojis{display:grid;grid-template-columns:repeat(9,minmax(0,1fr));gap:6px}
+.emoji-opt{aspect-ratio:1;border-radius:12px;border:2px solid transparent;background:var(--field);font-size:22px;padding:0;font-weight:800;color:var(--text2)}
+.emoji-opt.on{border-color:var(--accent);background:var(--accent-soft)}
+@media (max-width:600px){.emojis{grid-template-columns:repeat(6,minmax(0,1fr))}}
+
+/* Avatar emoji dans l'appli */
+.avatar.emo{background:color-mix(in srgb,var(--c) 28%,var(--surface-strong));font-size:17px;box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--c) 60%,transparent)}
+.avatars .avatar.emo{font-size:13px}
+.me-btn .avatar.emo{font-size:20px}
+.member-line.big .avatar{width:52px;height:52px;font-size:22px}
+.member-line.big .avatar.emo{font-size:28px}
+
+/* Utilisateur connecté (barre latérale) */
+.me-card{margin-top:auto;display:flex;align-items:center;gap:10px;padding:10px 10px 10px 12px;border-radius:16px;background:rgba(255,255,255,.5)}
+.me-card .avatar{width:38px;height:38px;font-size:16px}
+.me-card .avatar.emo{font-size:21px}
+.me-card>div{flex:1;min-width:0;line-height:1.2}
+.me-card small{display:block;font-size:12px;opacity:.75}
+:root[data-theme="dark"] .me-card{background:rgba(255,255,255,.08)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .me-card{background:rgba(255,255,255,.08)}}

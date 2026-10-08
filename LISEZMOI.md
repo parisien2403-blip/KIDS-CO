@@ -44,10 +44,16 @@ La synchronisation entre appareils utilise **Firebase** (Google), dont l'offre g
    - **Android** : dans Chrome, menu ⋮ → *Installer l'application*.
    - **PC / tablette Windows** : dans Chrome ou Edge, icône d'installation dans la barre d'adresse.
 3. Premier lancement :
-   - **Le premier** crée son compte, puis choisit *Créer notre foyer*.
-   - Dans *Réglages*, il récupère le **code d'invitation** (8 caractères) et le partage.
-   - **Les autres** créent leur compte, puis choisissent *Rejoindre un foyer* avec ce code.
-   - Pour la **tablette de la cuisine**, créez un compte dédié (par ex. prénom « Maison »), rejoignez le foyer, puis activez le **mode tablette** dans Réglages.
+   - **Sur le premier appareil**, un parent crée le compte de la famille (e-mail + mot de passe), choisit *Créer notre famille*, puis crée **son profil**.
+   - Dans *Réglages → La famille*, il ajoute les autres membres : conjoint(e) et enfants. Chacun a son prénom, son avatar, sa couleur et un **code secret à 4 chiffres** facultatif.
+   - **Sur les autres appareils**, connectez-vous avec ce même compte de famille (ou un autre compte + *Rejoindre* avec le code d'invitation affiché dans Réglages).
+   - Chacun choisit ensuite son profil sur l'écran **« Qui est là ? »**. L'appareil s'en souvient ; le bouton *Changer* permet de passer d'une personne à l'autre.
+   - Sur la **tablette de la cuisine**, activez dans Réglages le **mode tablette** et **« Demander qui est là à chaque ouverture »**.
+
+### Profils et codes secrets
+- **Parents** : peuvent ajouter, modifier ou retirer des membres et réinitialiser un code. Ajouter un membre depuis l'écran « Qui est là ? » demande le code d'un parent.
+- **Enfants** : peuvent modifier leur propre profil (avatar, couleur, code).
+- Le code secret est une protection entre membres de la famille (comme un verrou de chambre), pas un coffre-fort : la vraie protection des données est le compte de la famille et les règles Firebase.
 
 ## Fichiers
 
