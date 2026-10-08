@@ -573,3 +573,44 @@ img.avatar{width:42px;height:42px}
   .edt-weeklabel{min-width:0;font-size:18px}
   .view-head .cal-nav{flex-wrap:wrap}
 }
+
+/* ---------- Présence : « Qui est connecté ? » ---------- */
+.presence{margin:-6px 0 24px}
+.presence-head{display:flex;align-items:baseline;gap:12px;margin-bottom:12px}
+.online-count{font-size:13px;font-weight:800;color:#1F9D57;background:rgba(47,168,79,.12);padding:3px 10px;border-radius:999px}
+.presence-row{display:flex;gap:14px;overflow-x:auto;padding:4px 2px 12px;scroll-snap-type:x mandatory;scrollbar-width:thin}
+.mini-id{flex:0 0 auto;width:236px;aspect-ratio:1.586;border:0;border-radius:16px;padding:10px 12px;text-align:left;color:#1C3A57;scroll-snap-align:start;position:relative;overflow:hidden;
+  display:flex;flex-direction:column;gap:6px;font-family:var(--sans);
+  background:radial-gradient(120% 90% at 100% 0%,rgba(255,255,255,.55),transparent 60%),linear-gradient(135deg,#BDEBE1 0%,#A9D3F5 55%,#C9C3F2 100%);
+  box-shadow:0 12px 26px -16px rgba(34,71,107,.6),inset 0 0 0 1px rgba(255,255,255,.6);filter:grayscale(.55);opacity:.72;transition:transform .2s,filter .3s,opacity .3s}
+.mini-id.maison{background:radial-gradient(120% 90% at 100% 0%,rgba(255,255,255,.55),transparent 60%),linear-gradient(135deg,#FFE3D3 0%,#FFF1C9 55%,#BDEBE1 100%)}
+.mini-id.online{filter:none;opacity:1;box-shadow:0 0 0 3px #2FA84F,0 14px 30px -14px rgba(47,168,79,.7)}
+.mini-id:hover{transform:translateY(-3px);filter:none;opacity:1}
+.mini-top{display:flex;align-items:center;gap:7px}
+.mini-top img{width:22px;height:22px;border-radius:6px}
+.mini-top b{font-size:11px;font-weight:900;letter-spacing:.08em}
+.status-dot{margin-left:auto;width:11px;height:11px;border-radius:50%;background:#A3AEB9;box-shadow:0 0 0 3px rgba(255,255,255,.7)}
+.mini-id.online .status-dot{background:#2FA84F;animation:pulse 2s ease-out infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 3px rgba(255,255,255,.7),0 0 0 3px rgba(47,168,79,.5)}100%{box-shadow:0 0 0 3px rgba(255,255,255,.7),0 0 0 12px rgba(47,168,79,0)}}
+.mini-body{flex:1;display:flex;gap:10px;align-items:center;min-height:0}
+.mini-body .idcard-photo{width:62px;aspect-ratio:.82;border-radius:10px;font-size:28px;flex-shrink:0}
+.mini-info{display:flex;flex-direction:column;min-width:0;gap:1px}
+.mini-info b{font-size:14.5px;font-weight:900;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mini-info small{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;opacity:.65}
+.mini-status{margin-top:4px;font-size:11.5px;font-weight:700;line-height:1.25}
+.mini-id.online .mini-status{color:#14733A}
+/* Barre latérale : ma carte */
+.me-card{flex-direction:column;align-items:stretch;gap:8px;padding:12px;background:rgba(255,255,255,.4)}
+.me-card .mini-id{width:100%}
+.me-label{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;opacity:.7}
+/* Écran « Qui est là ? » : déjà connecté ailleurs */
+.profile{position:relative}
+.profile.online .profile-avatar::after{content:"";position:absolute;width:18px;height:18px;border-radius:50%;background:#2FA84F;box-shadow:0 0 0 4px var(--bg);transform:translate(44px,44px)}
+.profile-avatar{position:relative}
+.card-presence{text-align:center;font-weight:800;color:var(--text2);margin:14px 0 0}
+.card-presence.online{color:#1F9D57}
+@media (max-width:600px){
+  .mini-id{width:208px}
+  .presence-row{margin:0 -16px;padding:4px 16px 12px}
+  .profile.online .profile-avatar::after{transform:translate(32px,32px)}
+}

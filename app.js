@@ -171,7 +171,7 @@ const save = (p) => Promise.resolve(p).catch((e) => { console.error(e); toast('E
 /* ================= État ================= */
 const state = {
   user: null, me: null, family: null,
-  members: [], events: [], messages: [], notes: [], cours: [], edtNotes: [], edtConfig: {},
+  members: [], events: [], messages: [], notes: [], cours: [], edtNotes: [], edtConfig: {}, presence: [],
   view: 'accueil',
   month: (() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); })(),
   selected: todayStr(),
@@ -184,6 +184,74 @@ const stopSubs = () => { unsubs.forEach((u) => u && u()); unsubs = []; };
 
 const member = (id) => state.members.find((m) => m.id === id) || { id, name: 'Ancien membre', color: '#999' };
 const profileKey = () => 'kc-profile:' + (state.family?.id || '');
+
+/* Présence : chaque appareil signale régulièrement qui l'utilise, pour savoir qui est connecté. */
+const deviceId = (() => { let id = ls.get('kc-device'); if (!id) { id = 'd' + newCode().toLowerCase(); ls.set('kc-device', id); } return id; })();
+function deviceKind() {
+  const ua = navigator.userAgent;
+  if (/iPad|Tablet/i.test(ua) || (/Android/i.test(ua) && !/Mobile/i.test(ua)) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua))) return 'tablette';
+  if (/Mobi|iPhone|Android/i.test(ua)) return 'telephone';
+  return 'ordinateur';
+}
+const DEVICES = { telephone: '📱 Téléphone', tablette: '📲 Tablette', ordinateur: '💻 Ordinateur' };
+const ONLINE_MS = 4 * 60000;
+function beat(active = true) {
+  if (!state.family || !state.membersLoaded || !backend) return;
+  save(backend.set('presence', deviceId, {
+    memberId: state.me?.id || '', active: active && !!state.me && !document.hidden,
+    kind: isMaison(state.me) ? 'tablette' : deviceKind(), lastSeen: Date.now(),
+  }));
+}
+function presenceOf(memberId) {
+  const docs = state.presence.filter((p) => p.memberId === memberId);
+  const online = docs.filter((p) => p.active && Date.now() - p.lastSeen < ONLINE_MS);
+  return { online: online.length > 0, kinds: [...new Set(online.map((p) => p.kind))], last: Math.max(0, ...docs.map((p) => p.lastSeen || 0)) };
+}
+function ago(ts) {
+  const min = Math.round((Date.now() - ts) / 60000);
+  if (min < 1) return 'à l’instant';
+  if (min < 60) return `il y a ${min} min`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `il y a ${h} h`;
+  if (h < 48) return 'hier';
+  return 'le ' + new Date(ts).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+}
+const presenceText = (pr) => (pr.online ? `🟢 En ligne · ${pr.kinds.map((k) => DEVICES[k] || k).join(' + ')}` : pr.last ? `Vu ${ago(pr.last)}` : 'Pas encore connecté');
+let onlineBefore = null;
+function onPresence(list) {
+  state.presence = list;
+  const now = new Set(state.members.filter((m) => presenceOf(m.id).online).map((m) => m.id));
+  if (onlineBefore && state.me) {
+    for (const id of now) if (!onlineBefore.has(id) && id !== state.me.id) toast(`🟢 ${member(id).name} vient de se connecter`);
+  }
+  onlineBefore = now;
+  if (state.me) refresh();
+  else if (state.membersLoaded && !$('#modal-root').innerHTML && $('.who-screen')) renderWho();
+}
+setInterval(() => { if (!document.hidden) beat(); }, 90000);
+addEventListener('pagehide', () => beat(false));
+document.addEventListener('visibilitychange', () => beat(!document.hidden));
+// Les « vu il y a… » de l'accueil se mettent à jour chaque minute.
+setInterval(() => { if (state.me && state.view === 'accueil' && !$('#modal-root').innerHTML) refresh(); }, 60000);
+
+/* Mini carte d'identité (rangée « Qui est connecté ? » et barre latérale) */
+function miniCard(m, { action = 'show-card' } = {}) {
+  const pr = presenceOf(m.id);
+  return `<button class="mini-id ${pr.online ? 'online' : ''} ${isMaison(m) ? 'maison' : ''}" data-action="${action}" data-id="${esc(m.id)}" style="--c:${esc(m.color)}">
+    <span class="mini-top"><img src="logo.png" alt=""><b>KIDS &amp; CO</b><span class="status-dot" title="${pr.online ? 'En ligne' : 'Hors ligne'}"></span></span>
+    <span class="mini-body"><span class="idcard-photo${faceClass(m)}" style="--c:${esc(m.color)}">${faceText(m)}</span>
+      <span class="mini-info"><b>${esc(isMaison(m) ? 'Maison' : fullName(m))}</b><small>${roleLabel(m)}</small>
+        <span class="mini-status">${esc(presenceText(pr))}</span></span></span>
+  </button>`;
+}
+function presenceStrip() {
+  if (!state.members.length) return '';
+  const rank = (m) => (m.id === state.me.id ? 0 : presenceOf(m.id).online ? 1 : 2);
+  const list = state.members.slice().sort((a, b) => rank(a) - rank(b) || presenceOf(b.id).last - presenceOf(a.id).last);
+  const n = state.members.filter((m) => presenceOf(m.id).online).length;
+  return `<section class="presence"><div class="presence-head"><h2>Qui est connecté ?</h2><span class="online-count">${n} en ligne</span></div>
+    <div class="presence-row">${list.map((m) => miniCard(m)).join('')}</div></section>`;
+}
 
 /* Messagerie : chaque message a un expéditeur et des destinataires (to = null : toute la famille). */
 const msgFrom = (m) => m.from || m.author;
@@ -369,7 +437,7 @@ function renderWho() {
     <div class="eyebrow">${esc(state.family.name)}</div>
     <h1>Qui est là ?</h1>
     <div class="profiles">
-      ${state.members.map((m) => `<button class="profile" style="--c:${esc(m.color)}" data-action="pick-profile" data-id="${esc(m.id)}">
+      ${state.members.map((m) => `<button class="profile ${presenceOf(m.id).online ? 'online' : ''}" style="--c:${esc(m.color)}" data-action="pick-profile" data-id="${esc(m.id)}" title="${esc(presenceText(presenceOf(m.id)))}">
         <span class="profile-avatar${hasPhoto(m) ? ` photo ph-${cssId(m.id)}` : ''}">${faceText(m)}</span>
         <span class="profile-name">${esc(m.name)}</span>
         <span class="profile-tag">${m.pinHash ? '🔒 ' : ''}${roleLabel(m)}</span></button>`).join('')}
@@ -400,12 +468,14 @@ function startAs(m, { quiet = false } = {}) {
   }
   renderShell();
   resetIdle();
+  beat();
   if (!quiet) toast(`Bonjour ${m.name} ${hasPhoto(m) ? '👋' : m.emoji || '👋'}`);
 }
 
 function switchUser() {
   ls.del(profileKey());
   renderWho();
+  beat(false);
 }
 
 /* Pavé numérique pour le code secret */
@@ -569,6 +639,7 @@ function openCard(m, { welcome = false, onDone } = {}) {
     ${welcome ? `<div class="eyebrow">Compte créé 🎉</div><h2>${isMaison(m) ? 'Voici la carte de la maison' : `Bienvenue ${esc(m.name)} !`}</h2>
       <p class="muted" style="margin:6px 0 18px">${isMaison(m) ? 'La tablette de la cuisine fait maintenant partie de la famille.' : 'Voici ta carte d’identité Kids &amp; Co.'}</p>` : ''}
     ${cardHtml(m)}
+    ${welcome ? '' : `<p class="card-presence ${presenceOf(m.id).online ? 'online' : ''}">${esc(presenceText(presenceOf(m.id)))}</p>`}
     <div class="modal-actions" style="margin-top:18px">${!welcome && canEdit ? `<button class="btn" data-action="edit-member" data-id="${esc(m.id)}">Modifier</button>` : ''}
       <span class="grow"></span><button class="btn btn-primary" data-action="card-done">${welcome ? 'Continuer' : 'Fermer'}</button></div>
   </div></div>`;
@@ -598,6 +669,7 @@ async function enter(user) {
   state.loadedMessages = false;
   state.membersLoaded = false;
   state.edtNotesLoaded = false;
+  onlineBefore = null;
   state.autoLogin = ls.get('kc-ask') !== '1';
   backend.setFamily(family.id);
   renderWho();
@@ -609,6 +681,7 @@ async function enter(user) {
     backend.subscribe('cours', (list) => { state.cours = list; refresh(); }),
     backend.subscribe('edtNotes', onEdtNotes),
     backend.subscribe('edtConfig', (list) => { state.edtConfig = list.find((x) => x.id === 'main') || {}; refresh(); }),
+    backend.subscribe('presence', onPresence),
   );
 }
 
@@ -679,8 +752,8 @@ function refresh() {
   $('#fam-name').textContent = state.family.name;
   $('#fam-name-top').textContent = state.family.name;
   $('#me-btn').innerHTML = avatar(state.me);
-  $('#me-card').innerHTML = `${avatar(state.me)}<div><b>${esc(state.me.name)}</b><small>${roleLabel(state.me)}</small></div>
-    <button class="btn btn-sm" data-action="switch-user">Changer</button>`;
+  $('#me-card').innerHTML = `<div class="me-label">Connecté sur cet appareil</div>${miniCard(state.me)}
+    <button class="btn btn-sm" data-action="switch-user" style="width:100%">Changer d’utilisateur</button>`;
   document.title = (unreadCount() ? `(${unreadCount()}) ` : '') + 'Kids & Co';
 
   const kept = {};
@@ -725,6 +798,7 @@ const VIEWS = {
           <button class="btn" data-action="nav" data-view="important">${ICON.star} Pense-bête</button>
           <button class="btn" data-action="compose">${ICON.chat} Message</button>
         </div></div>
+      ${presenceStrip()}
       <div class="dash-grid">
         <section class="card tint-peach"><div class="card-head"><h2>Aujourd’hui</h2><span class="muted small">${today.length || 'Rien'} prévu${today.length > 1 ? 's' : ''}</span></div>
           <div class="list">${today.map((ev) => evItem(ev)).join('') || '<div class="empty">Journée libre ☀️</div>'}</div></section>
@@ -1208,6 +1282,7 @@ const ACTIONS = {
   },
   async logout() {
     if (state.family && !confirm('Déconnecter cet appareil de la famille ?')) return;
+    state.me = null; beat(false);
     stopSubs(); await backend.signOut();
   },
   'switch-user': () => switchUser(),
