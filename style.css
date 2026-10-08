@@ -393,3 +393,86 @@ body.tablet .card h2{font-size:23px}
 .me-card small{display:block;font-size:12px;opacity:.75}
 :root[data-theme="dark"] .me-card{background:rgba(255,255,255,.08)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .me-card{background:rgba(255,255,255,.08)}}
+
+/* ---------- Photos de profil ---------- */
+.avatar.photo,.profile-avatar.photo,.photo-preview.photo,.idcard-photo.photo{background-size:cover;background-position:center;background-color:var(--c);color:transparent}
+.profile-avatar.photo{box-shadow:0 16px 30px -14px var(--c),inset 0 0 0 3px rgba(255,255,255,.6)}
+img.avatar{object-fit:cover;background:none}
+.photo-pick{display:flex;align-items:center;gap:18px;margin-bottom:18px}
+.photo-preview{width:96px;height:96px;flex-shrink:0;border-radius:28px;display:grid;place-items:center;font-size:44px;font-weight:900;color:#fff;
+  background:linear-gradient(145deg,color-mix(in srgb,var(--c) 55%,#fff),var(--c));box-shadow:0 12px 26px -12px var(--c)}
+.photo-preview.emo{background:color-mix(in srgb,var(--c) 22%,var(--surface-strong));box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--c) 55%,transparent)}
+.photo-actions{display:flex;flex-direction:column;align-items:flex-start;gap:8px}
+.photo-actions label{cursor:pointer}
+.more-opts{margin:-4px 0 16px}
+.more-opts summary{cursor:pointer;font-size:13.5px;font-weight:700;color:var(--accent);padding:4px 0}
+
+/* ---------- Carte d'identité Kids & Co ---------- */
+.idcard{position:relative;overflow:hidden;width:100%;max-width:440px;aspect-ratio:1.586;border-radius:20px;padding:16px 18px;color:#1C3A57;
+  background:radial-gradient(120% 90% at 100% 0%,rgba(255,255,255,.55),transparent 60%),linear-gradient(135deg,#BDEBE1 0%,#A9D3F5 55%,#C9C3F2 100%);
+  box-shadow:0 22px 44px -22px rgba(34,71,107,.6),inset 0 0 0 1px rgba(255,255,255,.6);display:flex;flex-direction:column;font-family:var(--sans)}
+.idcard::before{content:"";position:absolute;inset:0;opacity:.18;pointer-events:none;
+  background:repeating-radial-gradient(circle at 85% 120%,transparent 0 14px,rgba(255,255,255,.9) 14px 15px)}
+.idcard.maison{background:radial-gradient(120% 90% at 100% 0%,rgba(255,255,255,.55),transparent 60%),linear-gradient(135deg,#FFE3D3 0%,#FFF1C9 55%,#BDEBE1 100%)}
+.idcard-top{position:relative;display:flex;align-items:center;gap:10px}
+.idcard-top img{width:34px;height:34px;border-radius:9px;box-shadow:0 4px 10px -4px rgba(34,71,107,.5)}
+.idcard-top b{display:block;font-weight:900;font-size:15px;letter-spacing:.06em;line-height:1.1}
+.idcard-top small{display:block;font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.7}
+.idcard-chip{margin-left:auto;width:34px;height:26px;border-radius:6px;background:linear-gradient(135deg,#F6D98B,#D9B25B);box-shadow:inset 0 0 0 1px rgba(120,90,20,.35)}
+.idcard-body{position:relative;flex:1;display:flex;gap:16px;align-items:center;padding:8px 0}
+.idcard-photo{width:30%;aspect-ratio:.82;border-radius:14px;flex-shrink:0;display:grid;place-items:center;font-size:42px;font-weight:900;color:#fff;
+  background:linear-gradient(145deg,color-mix(in srgb,var(--c) 55%,#fff),var(--c));box-shadow:0 8px 18px -8px rgba(34,71,107,.55),inset 0 0 0 3px rgba(255,255,255,.75)}
+.idcard-photo.emo{background:rgba(255,255,255,.7)}
+.idcard dl{margin:0;display:grid;gap:4px;min-width:0;flex:1}
+.idcard dl div{display:flex;flex-direction:column;min-width:0}
+.idcard dt{font-size:8.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;opacity:.6}
+.idcard dd{margin:0;font-size:14px;font-weight:800;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.idcard-foot{position:relative;display:flex;flex-direction:column;gap:2px;border-top:1px dashed rgba(28,58,87,.25);padding-top:6px}
+.idcard-num{font-size:11px;font-weight:800;letter-spacing:.12em}
+.mrz{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:10.5px;letter-spacing:.14em;opacity:.65;white-space:nowrap;overflow:hidden}
+.card-modal{width:min(500px,100%)}
+.card-modal h2{font-size:28px !important}
+.card-modal .idcard{margin:0 auto}
+@media (max-width:420px){ .idcard{padding:12px 14px} .idcard dd{font-size:12.5px} .idcard-photo{font-size:32px} }
+
+/* ---------- Membres (Réglages) ---------- */
+.member-open{flex:1;display:flex;align-items:center;gap:12px;border:0;background:none;padding:0;text-align:left;min-width:0}
+.member-open:hover b{text-decoration:underline}
+
+/* ---------- Messagerie ---------- */
+.box-tabs{max-width:520px}
+.box-tabs .badge{margin-left:6px}
+.mail-list{gap:8px}
+.mail{display:flex;align-items:flex-start;gap:14px;width:100%;text-align:left;padding:14px 16px;border-radius:var(--r-md);
+  background:var(--surface-strong);border:1.5px solid var(--line);box-shadow:0 1px 2px rgba(34,71,107,.04);position:relative;transition:transform .15s,box-shadow .2s}
+.mail:hover{transform:translateY(-1px);box-shadow:var(--shadow)}
+.mail .avatar{width:42px;height:42px;font-size:17px}
+.mail .avatar.emo{font-size:22px}
+.mail-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.mail-top{display:flex;justify-content:space-between;gap:10px}
+.mail-top b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mail-time{font-size:12.5px;color:var(--text2);white-space:nowrap}
+.mail-subject{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mail-preview{color:var(--text2);font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mail.unread{border-color:var(--sky-line);background:linear-gradient(90deg,var(--sky),var(--surface-strong) 60%)}
+.mail.unread .mail-top b,.mail.unread .mail-subject{font-weight:900}
+.unread-dot{position:absolute;top:50%;right:14px;width:10px;height:10px;border-radius:50%;background:var(--coral);transform:translateY(-50%);box-shadow:0 0 0 4px rgba(242,137,107,.18)}
+.mail.unread .mail-body{padding-right:18px}
+.mail.compact{padding:10px 12px;background:var(--row);border-color:transparent}
+.mail.compact.unread{background:var(--surface-strong);border-color:var(--sky-line)}
+.mail.compact .avatar{width:34px;height:34px;font-size:14px}
+.mail-modal{width:min(620px,100%)}
+.mail-head{display:flex;gap:12px;align-items:center;margin-bottom:14px}
+.mail-head .avatar{width:48px;height:48px;font-size:19px}
+.mail-head .avatar.emo{font-size:26px}
+.mail-title{font-size:24px !important;margin-bottom:10px}
+.mail-text{white-space:pre-wrap;overflow-wrap:anywhere;font-size:16.5px;line-height:1.55;padding:16px;border-radius:var(--r-md);background:var(--field);margin-bottom:8px}
+.who-chip .avatar{width:20px;height:20px;font-size:10px;vertical-align:-4px;margin-right:2px}
+.who-chip .avatar.emo{font-size:12px}
+img.avatar{width:42px;height:42px}
+@media (max-width:520px){
+  .idcard{aspect-ratio:auto;min-height:200px}
+  .idcard-top small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .idcard-top>div{min-width:0}
+  .idcard dl{gap:2px}
+}

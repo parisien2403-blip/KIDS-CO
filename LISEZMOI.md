@@ -50,6 +50,15 @@ La synchronisation entre appareils utilise **Firebase** (Google), dont l'offre g
    - Chacun choisit ensuite son profil sur l'écran **« Qui est là ? »**. L'appareil s'en souvient ; le bouton *Changer* permet de passer d'une personne à l'autre.
    - Sur la **tablette de la cuisine**, activez dans Réglages le **mode tablette** et **« Demander qui est là à chaque ouverture »**.
 
+### Comptes, photos et carte Kids & Co
+- Chaque compte a un **prénom, un nom et une photo** (prise avec l'appareil photo ou choisie dans la galerie ; elle est recadrée et allégée automatiquement). Un avatar rigolo reste possible à la place.
+- À la création, l'appli génère la **carte d'identité Kids & Co** du membre ; on la retrouve dans *Réglages*.
+- Le compte **Maison** est celui de la tablette de la cuisine : il active le mode tablette, et la tablette y revient toute seule après 3 minutes si quelqu'un oublie de se déconnecter.
+
+### Messagerie
+- Chaque compte a sa **boîte de réception** et sa **boîte d'envoi**. On écrit à une personne, à plusieurs ou à toute la famille ; chacun ne voit que les messages qui lui sont adressés.
+- L'**agenda** et le **pense-bête** restent communs à toute la famille.
+
 ### Profils et codes secrets
 - **Parents** : peuvent ajouter, modifier ou retirer des membres et réinitialiser un code. Ajouter un membre depuis l'écran « Qui est là ? » demande le code d'un parent.
 - **Enfants** : peuvent modifier leur propre profil (avatar, couleur, code).

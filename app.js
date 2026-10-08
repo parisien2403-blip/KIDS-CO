@@ -33,7 +33,16 @@ const CATEGORIES = {
 };
 // Avatars proposés pour les profils (les enfants adorent choisir le leur).
 const EMOJIS = ['🦁', '🐼', '🦊', '🐱', '🐶', '🐸', '🦄', '🐙', '🐝', '🦋', '🐢', '🐬', '⭐', '🌈', '⚽', '🎮', '🎨', '🚀', '🎸', '🌸', '🍕', '🧁', '👑', '🏠'];
-const isParent = (m) => m && m.role !== 'enfant';
+const isMaison = (m) => !!m && m.role === 'maison';
+const isParent = (m) => !!m && m.role !== 'enfant' && m.role !== 'maison';
+const roleLabel = (m) => (isMaison(m) ? 'Maison' : isParent(m) ? 'Parent' : 'Enfant');
+const fullName = (m) => [m.name, m.lastName].filter(Boolean).join(' ');
+// Photos de profil : petites images JPEG (data URL) enregistrées avec le profil.
+const PHOTO_RE = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
+const cssId = (id) => String(id).replace(/[^A-Za-z0-9_-]/g, '');
+const hasPhoto = (m) => !!(m && m.photo && PHOTO_RE.test(m.photo));
+const faceText = (m) => (hasPhoto(m) ? '' : esc(m.emoji || (isMaison(m) ? '🏠' : initial(m.name))));
+const faceClass = (m) => (hasPhoto(m) ? ` photo ph-${cssId(m.id)}` : m.emoji || isMaison(m) ? ' emo' : '');
 const REPEATS = { none: 'Jamais', weekly: 'Chaque semaine', monthly: 'Chaque mois', yearly: 'Chaque année' };
 const DOW = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 
@@ -86,6 +95,9 @@ function makeDemoBackend() {
       write(col, arr);
     },
     async update(col, id, data) { write(col, read(col).map((x) => (x.id === id ? { ...x, ...data } : x))); },
+    async arrayAdd(col, id, field, value) {
+      write(col, read(col).map((x) => (x.id === id && !(x[field] || []).includes(value) ? { ...x, [field]: [...(x[field] || []), value] } : x)));
+    },
     async remove(col, id) { write(col, read(col).filter((x) => x.id !== id)); },
   };
 }
@@ -134,6 +146,7 @@ async function makeCloudBackend(cfg) {
     add: (c, data) => F.addDoc(col(c), data),
     set: (c, id, data) => F.setDoc(ref(c, id), data, { merge: true }),
     update: (c, id, data) => F.updateDoc(ref(c, id), data),
+    arrayAdd: (c, id, field, value) => F.updateDoc(ref(c, id), { [field]: F.arrayUnion(value) }),
     remove: (c, id) => F.deleteDoc(ref(c, id)),
   };
 }
@@ -154,19 +167,26 @@ const state = {
   loadedMessages: false,
 };
 let unsubs = [];
-let renderedMsgTs = 0;
 const stopSubs = () => { unsubs.forEach((u) => u && u()); unsubs = []; };
 
 const member = (id) => state.members.find((m) => m.id === id) || { id, name: 'Ancien membre', color: '#999' };
-const lastSeenKey = () => `maison-lastseen:${state.family?.id || ''}:${state.me?.id || ''}`;
 const profileKey = () => 'kc-profile:' + (state.family?.id || '');
-const unreadCount = () => {
-  const seen = Number(ls.get(lastSeenKey(), 0));
-  return state.messages.filter((m) => m.author !== state.me?.id && m.ts > seen).length;
-};
-function markSeen() {
-  const last = state.messages[state.messages.length - 1];
-  if (last && state.view === 'messages' && !document.hidden) ls.set(lastSeenKey(), String(last.ts));
+
+/* Messagerie : chaque message a un expéditeur et des destinataires (to = null : toute la famille). */
+const msgFrom = (m) => m.from || m.author;
+const msgTo = (m) => (Array.isArray(m.to) && m.to.length ? m.to : null);
+const isForMe = (m) => !!state.me && msgFrom(m) !== state.me.id && (!msgTo(m) || msgTo(m).includes(state.me.id));
+const isHidden = (m) => (m.hiddenFor || []).includes(state.me?.id);
+const isUnread = (m) => !(m.readBy || []).includes(state.me?.id);
+const inbox = () => state.messages.filter((m) => isForMe(m) && !isHidden(m)).reverse();
+const outbox = () => state.messages.filter((m) => state.me && msgFrom(m) === state.me.id && !isHidden(m)).reverse();
+const unreadCount = () => (state.me ? inbox().filter(isUnread).length : 0);
+const toLabel = (m) => (msgTo(m) ? msgTo(m).map((id) => member(id).name).join(', ') : 'Toute la famille');
+function fmtWhen(ts) {
+  const d = new Date(ts), t = todayStr();
+  if (ymd(d) === t) return fmtTime(ts);
+  if (ymd(d) === ymd(addDays(new Date(), -1))) return 'Hier';
+  return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
 }
 
 /* ================= Agenda : occurrences ================= */
@@ -212,7 +232,28 @@ function toast(text, err = false) {
   $('#toasts').append(el);
   setTimeout(() => el.remove(), err ? 6000 : 3500);
 }
-const avatar = (m) => `<span class="avatar ${m.emoji ? 'emo' : ''}" style="--c:${esc(m.color)}" title="${esc(m.name)}">${esc(m.emoji || initial(m.name))}</span>`;
+const avatar = (m) => `<span class="avatar${faceClass(m)}" style="--c:${esc(m.color)}" title="${esc(fullName(m))}">${faceText(m)}</span>`;
+// Une seule règle CSS par photo, plutôt que de répéter l'image dans chaque avatar.
+function updatePhotoCss() {
+  let el = document.getElementById('photo-css');
+  if (!el) { el = document.createElement('style'); el.id = 'photo-css'; document.head.append(el); }
+  el.textContent = state.members.filter(hasPhoto).map((m) => `.ph-${cssId(m.id)}{background-image:url("${m.photo}")}`).join('\n');
+}
+// Recadre la photo en carré et la réduit (≈ 25 Ko) pour qu'elle se synchronise vite.
+function readPhoto(file, size = 320) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      const side = Math.min(img.naturalWidth, img.naturalHeight), c = document.createElement('canvas');
+      c.width = c.height = size;
+      c.getContext('2d').drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, size, size);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL('image/jpeg', 0.82));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Image illisible')); };
+    img.src = url;
+  });
+}
 const avatars = (ids) => (ids && ids.length ? `<span class="avatars">${ids.map((id) => avatar(member(id))).join('')}</span>` : '');
 const colorPicker = (current) => `<div class="colors">${COLORS.map((c) =>
   `<button type="button" class="color-dot ${c === current ? 'on' : ''}" style="--c:${c}" data-action="pick-color" data-color="${c}" aria-label="Couleur"></button>`).join('')}</div>`;
@@ -304,9 +345,9 @@ function renderWho() {
     <h1>Qui est là ?</h1>
     <div class="profiles">
       ${state.members.map((m) => `<button class="profile" style="--c:${esc(m.color)}" data-action="pick-profile" data-id="${esc(m.id)}">
-        <span class="profile-avatar">${esc(m.emoji || initial(m.name))}</span>
+        <span class="profile-avatar${hasPhoto(m) ? ` photo ph-${cssId(m.id)}` : ''}">${faceText(m)}</span>
         <span class="profile-name">${esc(m.name)}</span>
-        <span class="profile-tag">${m.pinHash ? '🔒 ' : ''}${isParent(m) ? 'Parent' : 'Enfant'}</span></button>`).join('')}
+        <span class="profile-tag">${m.pinHash ? '🔒 ' : ''}${roleLabel(m)}</span></button>`).join('')}
       <button class="profile add" data-action="add-member-start"><span class="profile-avatar">${ICON.plus}</span><span class="profile-name">Ajouter</span><span class="profile-tag">Nouveau membre</span></button>
     </div>
     ${backend.mode === 'cloud' ? '<button class="link" data-action="logout">Déconnecter cet appareil</button>'
@@ -321,14 +362,20 @@ function renderFirstProfile() {
   </div></div>`;
 }
 
-function startAs(m) {
+function startAs(m, { quiet = false } = {}) {
   state.me = m;
   ls.set(profileKey(), m.id);
   state.view = 'accueil';
+  state.box = 'in';
   closeModal();
+  if (isMaison(m) && ls.get('maison-tablet') !== '1') {
+    // Le compte Maison, c'est la tablette de la cuisine : écran allumé, retour à l'accueil.
+    ls.set('maison-tablet', '1'); applyTablet();
+    if (!quiet) toast('Mode tablette de la maison activé 🏠');
+  }
   renderShell();
-  markSeen();
-  toast(`Bonjour ${m.name} ${m.emoji || '👋'}`);
+  resetIdle();
+  if (!quiet) toast(`Bonjour ${m.name} ${hasPhoto(m) ? '👋' : m.emoji || '👋'}`);
 }
 
 function switchUser() {
@@ -344,7 +391,7 @@ function openPin(opts) {
   const title = pin.purpose === 'parent' ? 'Code d’un parent' : `Bonjour ${esc(m.name)} !`;
   const sub = pin.purpose === 'parent' ? 'Seul un parent peut ajouter un membre.' : 'Tape ton code secret';
   $('#modal-root').innerHTML = `<div class="modal-backdrop" data-action="close-modal"><div class="modal pin-modal" id="pin-modal">
-    ${m ? `<span class="profile-avatar sm" style="--c:${esc(m.color)}">${esc(m.emoji || initial(m.name))}</span>` : `<span class="profile-avatar sm" style="--c:#22476B">🔒</span>`}
+    ${m ? `<span class="profile-avatar sm${hasPhoto(m) ? ` photo ph-${cssId(m.id)}` : ''}" style="--c:${esc(m.color)}">${faceText(m)}</span>` : `<span class="profile-avatar sm" style="--c:#22476B">🔒</span>`}
     <h2>${title}</h2><p class="muted" id="pin-sub">${sub}</p>
     <div class="pin-dots" id="pin-dots">${'<span class="pin-dot"></span>'.repeat(4)}</div>
     <div class="keypad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map((k) => `<button class="key" data-action="pin-key" data-k="${k}">${k}</button>`).join('')}
@@ -377,21 +424,38 @@ async function pinKey(k) {
 }
 
 /* Fiche d'un membre (création ou modification) */
-function openMemberModal(m, { first = false } = {}) {
-  const isNew = !m;
+let memberPhoto; // undefined : inchangée, null : retirée, sinon nouvelle photo (data URL)
+function openMemberModal(m, { first = false, role } = {}) {
+  const isNew = !m || !m.id;
   const meParent = first || isParent(state.me);
-  m = m || { name: '', role: first ? 'parent' : 'enfant', color: COLORS[state.members.length % COLORS.length], emoji: '' };
+  m = m || { name: '', lastName: '', role: first ? 'parent' : role || 'enfant', color: COLORS[state.members.length % COLORS.length], emoji: '' };
+  memberPhoto = undefined;
+  const r = isMaison(m) ? 'maison' : isParent(m) ? 'parent' : 'enfant';
+  const maisonTaken = state.members.some((x) => isMaison(x) && x.id !== m.id);
   const canRole = meParent && !first;
+  const roleBtn = (v, label) => `<button type="button" class="${r === v ? 'on' : ''}" data-action="member-role" data-role="${v}">${label}</button>`;
   $('#modal-root').innerHTML = `<div class="modal-backdrop" data-action="close-modal"><form class="modal" id="member-form"
-      data-id="${esc(m.id || '')}" data-color="${esc(m.color)}" data-emoji="${esc(m.emoji || '')}" data-role="${esc(isParent(m) ? 'parent' : 'enfant')}" data-first="${first ? 1 : ''}">
-    <h2 style="margin-bottom:16px">${first ? 'Mon profil' : isNew ? 'Nouveau membre' : 'Modifier le profil'}</h2>
-    <label class="field"><span>Prénom</span><input type="text" name="name" value="${esc(m.name)}" maxlength="30" required></label>
-    ${canRole ? `<div class="field"><span>C’est…</span><div class="seg" style="margin:0">
-      <button type="button" class="${isParent(m) ? 'on' : ''}" data-action="member-role" data-role="parent">Un parent</button>
-      <button type="button" class="${isParent(m) ? '' : 'on'}" data-action="member-role" data-role="enfant">Un enfant</button></div></div>` : ''}
-    <div class="field"><span>Avatar</span><div class="emojis">
-      <button type="button" class="emoji-opt ${m.emoji ? '' : 'on'}" data-action="pick-emoji" data-emoji="" title="Initiale">Aa</button>
-      ${EMOJIS.map((e) => `<button type="button" class="emoji-opt ${m.emoji === e ? 'on' : ''}" data-action="pick-emoji" data-emoji="${e}">${e}</button>`).join('')}</div></div>
+      data-id="${esc(m.id || '')}" data-color="${esc(m.color)}" data-emoji="${esc(m.emoji || '')}" data-role="${r}" data-first="${first ? 1 : ''}" data-new="${isNew ? 1 : ''}">
+    <h2 style="margin-bottom:16px">${first ? 'Créer mon compte' : isNew ? 'Nouveau compte' : 'Modifier le compte'}</h2>
+    ${canRole ? `<div class="field"><span>Type de compte</span><div class="seg" style="margin:0">
+      ${roleBtn('parent', 'Parent')}${roleBtn('enfant', 'Enfant')}${maisonTaken ? '' : roleBtn('maison', '🏠 Maison')}</div></div>` : ''}
+    <p class="small muted maison-hint ${r === 'maison' ? '' : 'hidden'}" style="margin:-6px 0 14px">Le compte <b>Maison</b> est celui de la tablette de la cuisine : il affiche l’agenda de la famille et reçoit les messages adressés à la maison.</p>
+    <div class="photo-pick">
+      <span class="photo-preview${hasPhoto(m) ? ` photo ph-${cssId(m.id)}` : ''}" id="photo-preview" style="--c:${esc(m.color)}">${faceText(m)}</span>
+      <div class="photo-actions">
+        <label class="btn btn-primary btn-sm">📷 Prendre ou choisir une photo<input type="file" id="photo-input" accept="image/*" hidden></label>
+        <button type="button" class="btn btn-sm btn-danger ${hasPhoto(m) ? '' : 'hidden'}" id="photo-remove" data-action="remove-photo">Retirer la photo</button>
+        <span class="small muted">La photo apparaît sur la carte Kids &amp; Co et à côté de vos messages.</span>
+      </div>
+    </div>
+    <div class="row">
+      <label class="field"><span>Prénom</span><input type="text" name="name" value="${esc(m.name)}" maxlength="30" required></label>
+      <label class="field ${r === 'maison' ? 'hidden' : ''}" id="f-lastname"><span>Nom</span><input type="text" name="lastName" value="${esc(m.lastName || '')}" maxlength="40"></label>
+    </div>
+    <details class="more-opts"><summary>Pas de photo ? Choisir un avatar rigolo</summary>
+      <div class="emojis" style="margin-top:10px">
+        <button type="button" class="emoji-opt ${m.emoji ? '' : 'on'}" data-action="pick-emoji" data-emoji="" title="Initiale">Aa</button>
+        ${EMOJIS.map((e) => `<button type="button" class="emoji-opt ${m.emoji === e ? 'on' : ''}" data-action="pick-emoji" data-emoji="${e}">${e}</button>`).join('')}</div></details>
     <div class="field"><span>Couleur</span>${colorPicker(m.color)}</div>
     <label class="field"><span>Code secret (4 chiffres${first ? ', conseillé pour un parent' : ', facultatif'})</span>
       <input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="new-password"
@@ -399,34 +463,92 @@ function openMemberModal(m, { first = false } = {}) {
     ${m.pinHash ? '<label class="check-line"><input type="checkbox" name="nopin"> Supprimer le code secret</label>' : ''}
     <div class="error"></div>
     <div class="modal-actions">${!isNew && meParent && m.id !== state.me?.id ? `<button type="button" class="btn btn-danger" data-action="delete-member">${ICON.trash} Retirer</button>` : ''}
-      <span class="grow"></span>${first ? '' : '<button type="button" class="btn" data-action="close-modal-btn">Annuler</button>'}<button class="btn btn-primary">Enregistrer</button></div>
+      <span class="grow"></span>${first ? '' : '<button type="button" class="btn" data-action="close-modal-btn">Annuler</button>'}<button class="btn btn-primary">${isNew ? 'Créer le compte' : 'Enregistrer'}</button></div>
   </form></div>`;
+  if (!isNew && hasPhoto(m)) $('#photo-preview').style.backgroundImage = `url("${m.photo}")`;
   setTimeout(() => $('#member-form [name=name]')?.focus(), 50);
+}
+function updatePhotoPreview() {
+  const form = $('#member-form'), pv = $('#photo-preview');
+  if (!form || !pv) return;
+  const name = form.name.value || '?', emoji = form.dataset.emoji;
+  pv.style.setProperty('--c', form.dataset.color);
+  const photo = memberPhoto === undefined ? null : memberPhoto;
+  const keepOld = memberPhoto === undefined && pv.style.backgroundImage;
+  if (photo || keepOld) {
+    if (photo) pv.style.backgroundImage = `url("${photo}")`;
+    pv.classList.add('photo'); pv.textContent = '';
+    $('#photo-remove').classList.remove('hidden');
+  } else {
+    pv.style.backgroundImage = ''; pv.className = 'photo-preview' + (emoji || form.dataset.role === 'maison' ? ' emo' : '');
+    pv.textContent = emoji || (form.dataset.role === 'maison' ? '🏠' : initial(name));
+    $('#photo-remove').classList.add('hidden');
+  }
 }
 
 async function submitMember(form) {
   const fd = new FormData(form), errEl = form.querySelector('.error');
-  const first = !!form.dataset.first;
+  const first = !!form.dataset.first, isNew = !!form.dataset.new;
   const id = form.dataset.id || 'm' + newCode().toLowerCase();
   const old = state.members.find((x) => x.id === id);
-  const name = String(fd.get('name')).trim(), pinVal = String(fd.get('pin') || '');
   const role = first ? 'parent' : form.dataset.role;
+  const name = String(fd.get('name')).trim(), pinVal = String(fd.get('pin') || '');
+  const lastName = role === 'maison' ? '' : String(fd.get('lastName') || '').trim();
   if (!name) return;
   if (pinVal && !/^\d{4}$/.test(pinVal)) { errEl.textContent = 'Le code secret doit faire exactement 4 chiffres.'; return; }
-  if (old && isParent(old) && role === 'enfant' && state.members.filter(isParent).length === 1) {
+  if (old && isParent(old) && role !== 'parent' && state.members.filter(isParent).length === 1) {
     errEl.textContent = 'Il faut garder au moins un parent dans la famille.'; return;
   }
-  const data = { name, role, color: form.dataset.color, emoji: form.dataset.emoji, createdAt: old?.createdAt || Date.now() };
+  const data = { name, lastName, role, color: form.dataset.color, emoji: form.dataset.emoji, createdAt: old?.createdAt || Date.now() };
+  if (memberPhoto !== undefined) data.photo = memberPhoto || null;
   try {
     if (pinVal) data.pinHash = await hashPin(pinVal, id);
     else if (fd.get('nopin')) data.pinHash = null;
   } catch { errEl.textContent = 'Le code secret nécessite une connexion sécurisée (https).'; return; }
   save(backend.set('membres', id, data));
+  const saved = { id, ...old, ...data };
   closeModal();
-  if (first) return startAs({ id, ...old, ...data });
-  if (state.me?.id === id) { state.me = { ...state.me, ...data }; refresh(); }
-  toast(old ? 'Profil mis à jour' : `${name} a rejoint la famille 🎉`);
+  if (state.me?.id === id) { state.me = saved; refresh(); }
+  if (first) return openCard(saved, { welcome: true, onDone: () => startAs(saved) });
+  if (isNew) return openCard(saved, { welcome: true });
+  toast('Compte mis à jour');
 }
+
+/* Carte d'identité Kids & Co */
+const cardNumber = (m) => {
+  const raw = String(m.id).replace(/[^A-Za-z0-9]/g, '').toUpperCase().padEnd(8, 'X');
+  return `KC-${raw.slice(-8, -4)}-${raw.slice(-4)}`;
+};
+const mrz = (m) => {
+  const clean = (x) => String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/[^A-Z]/g, '<');
+  return `KC<${clean(isMaison(m) ? state.family.name : m.lastName || state.family.name)}<<${clean(m.name)}`.padEnd(36, '<').slice(0, 36);
+};
+function cardHtml(m) {
+  const since = new Date(m.createdAt || Date.now()).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+  const rows = isMaison(m)
+    ? [['Compte', 'Maison'], ['Famille', state.family.name], ['Appareil', 'Tablette de la cuisine'], ['En service depuis', since]]
+    : [['Nom', (m.lastName || '—').toUpperCase()], ['Prénom', m.name], ['Statut', roleLabel(m)], ['Famille', state.family.name], ['Membre depuis', since]];
+  return `<div class="idcard ${isMaison(m) ? 'maison' : ''}" style="--c:${esc(m.color)}">
+    <div class="idcard-top"><img src="logo.png" alt=""><div><b>KIDS &amp; CO</b><small>${isMaison(m) ? 'Carte de la maison' : 'Carte de membre'} · Famille &amp; partage</small></div><span class="idcard-chip"></span></div>
+    <div class="idcard-body">
+      <span class="idcard-photo${faceClass(m)}" style="--c:${esc(m.color)}">${faceText(m)}</span>
+      <dl>${rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
+    </div>
+    <div class="idcard-foot"><span class="idcard-num">N° ${cardNumber(m)}</span><span class="mrz">${esc(mrz(m))}</span></div>
+  </div>`;
+}
+function openCard(m, { welcome = false, onDone } = {}) {
+  const canEdit = state.me && (isParent(state.me) || state.me.id === m.id);
+  cardDone = onDone || null;
+  $('#modal-root').innerHTML = `<div class="modal-backdrop" data-action="close-modal"><div class="modal card-modal">
+    ${welcome ? `<div class="eyebrow">Compte créé 🎉</div><h2>${isMaison(m) ? 'Voici la carte de la maison' : `Bienvenue ${esc(m.name)} !`}</h2>
+      <p class="muted" style="margin:6px 0 18px">${isMaison(m) ? 'La tablette de la cuisine fait maintenant partie de la famille.' : 'Voici ta carte d’identité Kids &amp; Co.'}</p>` : ''}
+    ${cardHtml(m)}
+    <div class="modal-actions" style="margin-top:18px">${!welcome && canEdit ? `<button class="btn" data-action="edit-member" data-id="${esc(m.id)}">Modifier</button>` : ''}
+      <span class="grow"></span><button class="btn btn-primary" data-action="card-done">${welcome ? 'Continuer' : 'Fermer'}</button></div>
+  </div></div>`;
+}
+let cardDone = null;
 
 /* ================= Démarrage ================= */
 async function enter(user) {
@@ -462,7 +584,9 @@ async function enter(user) {
 }
 
 function onMembers(list) {
-  state.members = list.filter((m) => m.name).sort((a, b) => (isParent(b) - isParent(a)) || a.name.localeCompare(b.name));
+  const rank = (m) => (isMaison(m) ? 0 : isParent(m) ? 1 : 2);
+  state.members = list.filter((m) => m.name).sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
+  updatePhotoCss();
   const firstLoad = !state.membersLoaded;
   state.membersLoaded = true;
   if (state.me) {
@@ -473,7 +597,7 @@ function onMembers(list) {
   }
   if (firstLoad && state.autoLogin) {
     const m = state.members.find((x) => x.id === ls.get(profileKey()));
-    if (m) return startAs(m);
+    if (m) return startAs(m, { quiet: true });
   }
   if (!$('#modal-root').innerHTML) renderWho();
 }
@@ -481,17 +605,16 @@ function onMembers(list) {
 function onMessages(list) {
   list.sort((a, b) => a.ts - b.ts);
   const prevMax = state.messages.length ? state.messages[state.messages.length - 1].ts : 0;
-  const fresh = state.loadedMessages ? list.filter((m) => m.ts > prevMax && m.author !== state.me?.id) : [];
+  const fresh = state.loadedMessages ? list.filter((m) => m.ts > prevMax && isForMe(m)) : [];
   state.messages = list;
   state.loadedMessages = true;
   for (const m of fresh) {
-    const who = member(m.author).name;
-    if (state.view !== 'messages' || document.hidden) toast(`💬 ${who} : ${m.text.slice(0, 80)}`);
+    const who = member(msgFrom(m)).name, what = m.subject || m.text.slice(0, 80);
+    toast(`✉️ ${who} : ${what}`);
     if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
-      try { new Notification(`${who} — Kids & Co`, { body: m.text.slice(0, 140), icon: 'icon-192.png', tag: 'maison-msg' }); } catch {}
+      try { new Notification(`${who} — Kids & Co`, { body: what, icon: 'icon-192.png', tag: 'kc-msg-' + m.id }); } catch {}
     }
   }
-  markSeen();
   refresh();
 }
 
@@ -527,26 +650,20 @@ function refresh() {
   $('#fam-name').textContent = state.family.name;
   $('#fam-name-top').textContent = state.family.name;
   $('#me-btn').innerHTML = avatar(state.me);
-  $('#me-card').innerHTML = `${avatar(state.me)}<div><b>${esc(state.me.name)}</b><small>${isParent(state.me) ? 'Parent' : 'Enfant'}</small></div>
+  $('#me-card').innerHTML = `${avatar(state.me)}<div><b>${esc(state.me.name)}</b><small>${roleLabel(state.me)}</small></div>
     <button class="btn btn-sm" data-action="switch-user">Changer</button>`;
   document.title = (unreadCount() ? `(${unreadCount()}) ` : '') + 'Kids & Co';
 
   const kept = {};
   main.querySelectorAll('input[id],textarea[id]').forEach((el) => { kept[el.id] = el.value; });
   const active = document.activeElement && main.contains(document.activeElement) ? document.activeElement.id : null;
-  const chat = $('#chat');
-  const nearBottom = !chat || chat.scrollHeight - chat.scrollTop - chat.clientHeight < 80;
-
-  main.className = (state.view === 'messages' ? 'fill' : '') + (entering ? ' enter' : '');
-  main.innerHTML = (backend.mode === 'demo' && state.view !== 'messages'
+  main.className = entering ? 'enter' : '';
+  main.innerHTML = (backend.mode === 'demo'
     ? '<div class="demo-banner">Mode démo — les données restent sur cet appareil. Ajoutez votre configuration Firebase dans <b>config.js</b> pour synchroniser tous les appareils (voir LISEZMOI.md).</div>' : '')
     + VIEWS[state.view]();
 
   for (const [id, v] of Object.entries(kept)) { const el = document.getElementById(id); if (el && el.type !== 'file') el.value = v; }
   if (active) { const el = document.getElementById(active); if (el) { el.focus(); if (el.setSelectionRange && el.value) el.setSelectionRange(el.value.length, el.value.length); } }
-  const c2 = $('#chat');
-  if (c2 && nearBottom) c2.scrollTop = c2.scrollHeight;
-  autoGrow($('#msg-input'));
 }
 // L'animation d'entrée ne joue qu'au changement d'écran, pas à chaque synchronisation.
 let entering = false, enterTimer = null;
@@ -554,10 +671,8 @@ function go(view) {
   state.view = view;
   entering = true; clearTimeout(enterTimer);
   enterTimer = setTimeout(() => { entering = false; $('#main')?.classList.remove('enter'); }, 800);
-  markSeen();
   refresh();
   $('#main').scrollTop = 0;
-  if (view === 'messages') { const c = $('#chat'); if (c) c.scrollTop = c.scrollHeight; }
 }
 
 /* ================= Vues ================= */
@@ -568,18 +683,18 @@ const VIEWS = {
     const today = map[t] || [];
     const upcoming = Object.keys(map).filter((d) => d > t).sort().slice(0, 7);
     const important = state.notes.filter((n) => !n.done).sort((a, b) => (b.important ? 1 : 0) - (a.important ? 1 : 0) || b.ts - a.ts).slice(0, 7);
-    const lastMsgs = state.messages.slice(-4);
+    const myMail = inbox().slice(0, 4), unread = inbox().filter(isUnread).length;
     const hello = now.getHours() < 5 ? 'Bonne nuit' : now.getHours() < 18 ? 'Bonjour' : 'Bonsoir';
     const dateTxt = now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
     return `<div class="dash-head">
         <div class="hero">
-          <div class="greet">${hello} ${esc(state.me.name)}</div>
+          <div class="greet">${hello} ${isMaison(state.me) ? 'la famille' : esc(state.me.name)}</div>
           <div class="clock" id="clock">${clockHtml(now)}</div>
           <div class="today-label">${esc(dateTxt)}</div></div>
         <div class="quick">
           <button class="btn btn-primary" data-action="new-event" data-date="${t}">${ICON.plus} Rendez-vous</button>
           <button class="btn" data-action="nav" data-view="important">${ICON.star} Pense-bête</button>
-          <button class="btn" data-action="nav" data-view="messages">${ICON.chat} Message</button>
+          <button class="btn" data-action="compose">${ICON.chat} Message</button>
         </div></div>
       <div class="dash-grid">
         <section class="card tint-peach"><div class="card-head"><h2>Aujourd’hui</h2><span class="muted small">${today.length || 'Rien'} prévu${today.length > 1 ? 's' : ''}</span></div>
@@ -589,8 +704,8 @@ const VIEWS = {
         <section class="card tint-mint"><div class="card-head"><h2>À venir</h2><button class="btn btn-sm" data-action="nav" data-view="agenda">Agenda</button></div>
           ${upcoming.map((d) => `<div class="day-group"><h3>${d === ymd(addDays(now, 1)) ? 'Demain' : esc(fmtLong(parseYmd(d)))}</h3>
             <div class="list">${map[d].map((ev) => evItem(ev)).join('')}</div></div>`).join('') || '<div class="empty">Rien dans les 2 prochaines semaines.</div>'}</section>
-        <section class="card tint-sky"><div class="card-head"><h2>Derniers messages</h2><button class="btn btn-sm" data-action="nav" data-view="messages">Discuter</button></div>
-          <div class="list">${lastMsgs.map((m) => { const a = member(m.author); return `<div class="mini-msg">${avatar(a)}<div><b>${esc(a.name)}</b> <span class="muted small">${fmtTime(m.ts)}</span><p>${esc(m.text)}</p></div></div>`; }).join('') || '<div class="empty">Aucun message pour l’instant.</div>'}</div></section>
+        <section class="card tint-sky"><div class="card-head"><h2>Ma boîte de réception${unread ? ` <span class="badge" style="margin-left:6px">${unread}</span>` : ''}</h2><button class="btn btn-sm" data-action="nav" data-view="messages">Tout voir</button></div>
+          <div class="list">${myMail.map((m) => mailItem(m, 'in', true)).join('') || '<div class="empty">Aucun message pour vous.</div>'}</div></section>
       </div>`;
   },
 
@@ -627,23 +742,15 @@ const VIEWS = {
   },
 
   messages() {
-    let html = '', lastDay = '';
-    const popAfter = renderedMsgTs;
-  renderedMsgTs = state.messages.length ? state.messages[state.messages.length - 1].ts : 0;
-  for (const m of state.messages) {
-      const day = ymd(new Date(m.ts));
-      if (day !== lastDay) {
-        lastDay = day;
-        const label = day === todayStr() ? 'Aujourd’hui' : day === ymd(addDays(new Date(), -1)) ? 'Hier' : fmtLong(parseYmd(day));
-        html += `<div class="day-sep">${esc(label)}</div>`;
-      }
-      const mine = m.author === state.me.id, a = member(m.author);
-      html += `<div class="msg ${mine ? 'mine' : ''} ${popAfter && m.ts > popAfter ? 'pop' : ''}">${mine ? '' : `<span class="msg-author" style="--c:${esc(a.color)}">${esc(a.name)}</span>`}${esc(m.text)}<span class="msg-time">${fmtTime(m.ts)}</span></div>`;
-    }
-    return `<div class="view-head" style="margin-bottom:8px"><div><div class="eyebrow">${esc(state.family.name)}</div><h1>Messages</h1></div><div class="avatars">${state.members.map(avatar).join('')}</div></div>
-      <div class="chat" id="chat">${html || '<div class="empty" style="margin:auto">Écrivez le premier message à la famille 👋</div>'}</div>
-      <form class="composer" id="msg-form"><textarea id="msg-input" rows="1" placeholder="Écrire un message…" maxlength="2000"></textarea>
-        <button class="btn btn-primary" aria-label="Envoyer">${ICON.send}</button></form>`;
+    const box = state.box || 'in';
+    const list = box === 'out' ? outbox() : inbox();
+    const n = unreadCount();
+    return `<div class="view-head"><div><div class="eyebrow">Messagerie de ${esc(state.me.name)}</div><h1>Messages</h1></div>
+        <button class="btn btn-primary" data-action="compose">${ICON.plus} Écrire</button></div>
+      <div class="seg box-tabs"><button class="${box === 'in' ? 'on' : ''}" data-action="box" data-box="in">📥 Boîte de réception${n ? ` <span class="badge">${n}</span>` : ''}</button>
+        <button class="${box === 'out' ? 'on' : ''}" data-action="box" data-box="out">📤 Boîte d’envoi</button></div>
+      <div class="list mail-list">${list.map((m) => mailItem(m, box)).join('')
+        || `<div class="empty">${box === 'out' ? 'Vous n’avez encore envoyé aucun message.' : 'Aucun message reçu pour l’instant.'}</div>`}</div>`;
   },
 
   important() {
@@ -668,15 +775,17 @@ const VIEWS = {
     const notif = !('Notification' in window) ? 'unsupported' : Notification.permission;
     return `<div class="view-head"><div><div class="eyebrow">Profil, foyer et appareil</div><h1>Réglages</h1></div></div>
       <div class="settings">
-        <section class="card"><h2 style="margin-bottom:14px">Mon profil</h2>
-          <div class="member-line big">${avatar(state.me)}<div><b>${esc(state.me.name)}</b><div class="small muted">${isParent(state.me) ? 'Parent' : 'Enfant'}${state.me.pinHash ? ' · 🔒 code secret' : ' · sans code secret'}</div></div></div>
-          <div class="quick" style="margin-top:12px"><button class="btn btn-primary btn-sm" data-action="edit-member" data-id="${esc(state.me.id)}">Modifier mon profil</button>
+        <section class="card"><h2 style="margin-bottom:14px">Ma carte Kids &amp; Co</h2>
+          ${cardHtml(state.me)}
+          <div class="small muted" style="margin-top:10px">${state.me.pinHash ? '🔒 Protégé par un code secret' : 'Sans code secret'}</div>
+          <div class="quick" style="margin-top:12px"><button class="btn btn-primary btn-sm" data-action="edit-member" data-id="${esc(state.me.id)}">Modifier mon compte</button>
             <button class="btn btn-sm" data-action="switch-user">Changer d’utilisateur</button></div></section>
         <section class="card"><h2 style="margin-bottom:10px">La famille</h2>
-          ${state.members.map((m) => `<div class="member-line">${avatar(m)}<div style="flex:1"><b>${esc(m.name)}</b>${m.id === state.me.id ? ' <span class="muted small">(vous)</span>' : ''}
-              <div class="small muted">${isParent(m) ? 'Parent' : 'Enfant'}${m.pinHash ? ' · 🔒' : ''}</div></div>
+          ${state.members.map((m) => `<div class="member-line"><button class="member-open" data-action="show-card" data-id="${esc(m.id)}">${avatar(m)}<div><b>${esc(fullName(m))}</b>${m.id === state.me.id ? ' <span class="muted small">(vous)</span>' : ''}
+              <div class="small muted">${roleLabel(m)}${m.pinHash ? ' · 🔒' : ''} · voir la carte</div></div></button>
             ${isParent(state.me) || m.id === state.me.id ? `<button class="btn btn-sm" data-action="edit-member" data-id="${esc(m.id)}">Modifier</button>` : ''}</div>`).join('')}
-          ${isParent(state.me) ? `<button class="btn btn-sm" style="margin-top:10px" data-action="add-member">${ICON.plus} Ajouter un membre</button>` : ''}
+          ${isParent(state.me) ? `<div class="quick" style="margin-top:10px"><button class="btn btn-sm" data-action="add-member">${ICON.plus} Ajouter un membre</button>
+            ${state.members.some(isMaison) ? '' : `<button class="btn btn-sm" data-action="add-maison">🏠 Créer le compte Maison</button>`}</div>` : ''}
           <form id="family-form" style="margin-top:18px"><label class="field"><span>Nom de la famille</span>
             <input type="text" id="f-name" value="${esc(state.family.name)}" maxlength="40" ${isParent(state.me) ? '' : 'disabled'}></label></form>
           ${backend.mode === 'cloud' ? `<p class="muted small" style="margin:4px 0 0">Code pour connecter un nouvel appareil (téléphone, tablette, PC) à la famille :</p>
@@ -701,6 +810,64 @@ const VIEWS = {
       </div>`;
   },
 };
+
+function mailItem(m, box, compact = false) {
+  const out = box === 'out', from = member(msgFrom(m)), to = msgTo(m);
+  const unread = !out && isUnread(m);
+  const face = out ? (to && to.length === 1 ? avatar(member(to[0])) : '<img class="avatar" src="logo.png" alt="">') : avatar(from);
+  return `<button class="mail ${unread ? 'unread' : ''} ${compact ? 'compact' : ''}" data-action="open-mail" data-id="${esc(m.id)}">
+    ${face}<span class="mail-body"><span class="mail-top"><b>${out ? 'À : ' + esc(toLabel(m)) : esc(fullName(from))}</b><span class="mail-time">${fmtWhen(m.ts)}</span></span>
+      ${m.subject ? `<span class="mail-subject">${esc(m.subject)}</span>` : ''}<span class="mail-preview">${esc(m.text.slice(0, 140))}</span></span>
+    ${unread ? '<span class="unread-dot" aria-label="Non lu"></span>' : ''}</button>`;
+}
+
+function openMail(m) {
+  if (isForMe(m) && isUnread(m)) {
+    m.readBy = [...(m.readBy || []), state.me.id];
+    save(backend.arrayAdd('messages', m.id, 'readBy', state.me.id));
+  }
+  const from = member(msgFrom(m)), mine = msgFrom(m) === state.me.id;
+  const others = (msgTo(m) || state.members.map((x) => x.id)).filter((id) => id !== state.me.id);
+  $('#modal-root').innerHTML = `<div class="modal-backdrop" data-action="close-modal"><div class="modal mail-modal" data-id="${esc(m.id)}">
+    <div class="mail-head">${avatar(from)}<div><b>${esc(fullName(from))}</b>
+      <div class="small muted">À : ${esc(toLabel(m))} · ${new Date(m.ts).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</div></div></div>
+    ${m.subject ? `<h2 class="mail-title">${esc(m.subject)}</h2>` : ''}
+    <div class="mail-text">${esc(m.text)}</div>
+    <div class="modal-actions"><button class="btn btn-danger" data-action="hide-mail">${ICON.trash} Supprimer</button><span class="grow"></span>
+      ${mine ? '' : `<button class="btn" data-action="reply" data-all="">Répondre</button>`}
+      ${!mine && others.length > 1 ? `<button class="btn" data-action="reply" data-all="1">Répondre à tous</button>` : ''}
+      <button class="btn btn-primary" data-action="close-modal-btn">Fermer</button></div>
+  </div></div>`;
+  refresh();
+}
+
+function openCompose({ to = [], subject = '', all = false } = {}) {
+  const sel = new Set(to);
+  const people = state.members.filter((x) => x.id !== state.me.id);
+  $('#modal-root').innerHTML = `<div class="modal-backdrop" data-action="close-modal"><form class="modal" id="compose-form">
+    <h2 style="margin-bottom:16px">Nouveau message</h2>
+    <div class="field"><span>À</span><div class="who">
+      <button type="button" class="who-chip rcpt-all ${all ? 'on' : ''}" style="--c:var(--btn)" data-action="rcpt-all">👨‍👩‍👧 Toute la famille</button>
+      ${people.map((x) => `<button type="button" class="who-chip rcpt ${!all && sel.has(x.id) ? 'on' : ''}" style="--c:${esc(x.color)}" data-action="rcpt" data-id="${esc(x.id)}">${avatar(x)} ${esc(x.name)}</button>`).join('')}</div></div>
+    <label class="field"><span>Objet (facultatif)</span><input type="text" name="subject" value="${esc(subject)}" maxlength="120" placeholder="Ex. Courses de ce soir"></label>
+    <label class="field"><span>Message</span><textarea name="text" maxlength="4000" rows="6" required placeholder="Écris ton message…"></textarea></label>
+    <div class="error"></div>
+    <div class="modal-actions"><span class="grow"></span><button type="button" class="btn" data-action="close-modal-btn">Annuler</button>
+      <button class="btn btn-primary">${ICON.send} Envoyer</button></div>
+  </form></div>`;
+  setTimeout(() => $(sel.size || all ? '#compose-form [name=text]' : '#compose-form [name=subject]')?.focus(), 50);
+}
+
+function submitCompose(form) {
+  const all = !!form.querySelector('.rcpt-all.on');
+  const to = [...form.querySelectorAll('.rcpt.on')].map((b) => b.dataset.id);
+  const text = form.text.value.trim(), subject = form.subject.value.trim();
+  if (!all && !to.length) { form.querySelector('.error').textContent = 'Choisissez au moins un destinataire.'; return; }
+  if (!text) return;
+  save(backend.add('messages', { from: state.me.id, to: all ? null : to, subject, text, ts: Date.now(), readBy: [state.me.id] }));
+  closeModal();
+  toast('Message envoyé ✉️');
+}
 
 function noteItem(n) {
   const a = member(n.author);
@@ -727,7 +894,7 @@ function openEventModal(ev, date) {
       <label class="field"><span>Fin (facultatif)</span><input type="time" name="end" value="${esc(ev.end)}"></label></div>
     <label class="field"><span>Répéter</span><select name="repeat">${Object.entries(REPEATS).map(([k, l]) => `<option value="${k}" ${ev.repeat === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
     <div class="field"><span>Qui est concerné ? (personne = toute la famille)</span><div class="who">
-      ${state.members.map((m) => `<button type="button" class="who-chip ${who.has(m.id) ? 'on' : ''}" style="--c:${esc(m.color)}" data-action="toggle-who" data-id="${esc(m.id)}">${esc(m.name)}</button>`).join('')}</div></div>
+      ${state.members.filter((m) => !isMaison(m)).map((m) => `<button type="button" class="who-chip ${who.has(m.id) ? 'on' : ''}" style="--c:${esc(m.color)}" data-action="toggle-who" data-id="${esc(m.id)}">${esc(m.name)}</button>`).join('')}</div></div>
     <label class="field"><span>Notes</span><textarea name="notes" maxlength="1000" placeholder="Adresse, documents à apporter…">${esc(ev.notes)}</textarea></label>
     ${!isNew && ev.createdBy ? `<p class="small muted">Ajouté par ${esc(member(ev.createdBy).name)}</p>` : ''}
     <div class="modal-actions">${isNew ? '' : `<button type="button" class="btn btn-danger" data-action="delete-event">${ICON.trash} Supprimer</button>`}
@@ -775,6 +942,7 @@ const ACTIONS = {
     const form = el.closest('form');
     form.dataset.color = el.dataset.color;
     form.querySelectorAll('.color-dot').forEach((b) => b.classList.toggle('on', b === el));
+    updatePhotoPreview();
   },
   async logout() {
     if (state.family && !confirm('Déconnecter cet appareil de la famille ?')) return;
@@ -795,16 +963,43 @@ const ACTIONS = {
     else openMemberModal(null);
   },
   'add-member': () => openMemberModal(null),
+  'add-maison': () => openMemberModal({ name: 'Maison', lastName: '', role: 'maison', color: '#3FB0A4', emoji: '' }, {}),
+  'show-card'(el) { const m = state.members.find((x) => x.id === el.dataset.id); if (m) openCard(m); },
+  'card-done'() { const done = cardDone; cardDone = null; closeModal(); if (done) done(); },
+  'remove-photo'() { memberPhoto = null; $('#photo-preview').style.backgroundImage = ''; updatePhotoPreview(); },
+  compose: () => openCompose(),
+  box(el) { state.box = el.dataset.box; refresh(); },
+  'open-mail'(el) { const m = state.messages.find((x) => x.id === el.dataset.id); if (m) openMail(m); },
+  'hide-mail'() {
+    const id = $('.mail-modal').dataset.id;
+    save(backend.arrayAdd('messages', id, 'hiddenFor', state.me.id));
+    closeModal(); toast('Message supprimé de votre boîte');
+  },
+  reply(el) {
+    const m = state.messages.find((x) => x.id === $('.mail-modal').dataset.id);
+    if (!m) return;
+    const subject = m.subject ? (/^re ?:/i.test(m.subject) ? m.subject : 'Re : ' + m.subject) : '';
+    if (!el.dataset.all) return openCompose({ to: [msgFrom(m)], subject });
+    if (!msgTo(m)) return openCompose({ all: true, subject });
+    openCompose({ to: [...new Set([msgFrom(m), ...msgTo(m)])].filter((id) => id !== state.me.id), subject });
+  },
+  'rcpt-all'(el) { el.classList.toggle('on'); if (el.classList.contains('on')) el.closest('form').querySelectorAll('.rcpt').forEach((b) => b.classList.remove('on')); },
+  rcpt(el) { el.classList.toggle('on'); el.closest('form').querySelector('.rcpt-all').classList.remove('on'); },
   'edit-member'(el) { const m = state.members.find((x) => x.id === el.dataset.id); if (m) openMemberModal(m); },
   'member-role'(el) {
     const form = el.closest('form');
     form.dataset.role = el.dataset.role;
     form.querySelectorAll('[data-action=member-role]').forEach((b) => b.classList.toggle('on', b === el));
+    $('#f-lastname').classList.toggle('hidden', el.dataset.role === 'maison');
+    form.querySelector('.maison-hint').classList.toggle('hidden', el.dataset.role !== 'maison');
+    if (el.dataset.role === 'maison' && !form.name.value) form.name.value = 'Maison';
+    updatePhotoPreview();
   },
   'pick-emoji'(el) {
     const form = el.closest('form');
     form.dataset.emoji = el.dataset.emoji;
     form.querySelectorAll('.emoji-opt').forEach((b) => b.classList.toggle('on', b === el));
+    updatePhotoPreview();
   },
   'delete-member'() {
     const id = $('#member-form').dataset.id, m = state.members.find((x) => x.id === id);
@@ -814,7 +1009,7 @@ const ACTIONS = {
   'toggle-ask'() { ls.set('kc-ask', ls.get('kc-ask') === '1' ? '0' : '1'); refresh(); },
   'new-event': (el) => openEventModal(null, el.dataset.date),
   'edit-event': (el) => { const ev = state.events.find((x) => x.id === el.dataset.id); if (ev) openEventModal(ev); },
-  'close-modal': (el, e) => { if (e.target === el && !$('#member-form[data-first="1"]')) { pin = null; closeModal(); } },
+  'close-modal': (el, e) => { if (e.target === el && !$('#member-form[data-first="1"]') && !cardDone) { pin = null; closeModal(); } },
   'toggle-who': (el) => el.classList.toggle('on'),
   'delete-event'() {
     const id = $('#event-form').dataset.id;
@@ -859,8 +1054,13 @@ document.addEventListener('click', (e) => {
   if (fn) { if (el.tagName === 'BUTTON' && el.type !== 'submit') e.preventDefault(); fn(el, e); }
 });
 
-document.addEventListener('change', (e) => {
+document.addEventListener('change', async (e) => {
   const t = e.target;
+  if (t.id === 'photo-input' && t.files && t.files[0]) {
+    try { memberPhoto = await readPhoto(t.files[0]); updatePhotoPreview(); }
+    catch { toast('Impossible de lire cette photo, essayez-en une autre.', true); }
+    t.value = '';
+  }
   if (t.dataset.action === 'theme') { ls.set('maison-theme', t.value); applyTheme(); }
   if (t.form?.id === 'event-form' && t.name === 'allDay') $('#time-row').classList.toggle('hidden', t.checked);
   if (t.form?.id === 'event-form' && t.name === 'category' && t.value === 'anniv') t.form.repeat.value = 'yearly';
@@ -880,7 +1080,7 @@ document.addEventListener('submit', async (e) => {
     catch (err) { renderLogin(f.dataset.mode, AUTH_ERRORS[err.code] || err.message); $('#login-form [name=email]').value = email; }
   } else if (f.id === 'setup-form') submitSetup(f);
   else if (f.id === 'event-form') submitEvent(f);
-  else if (f.id === 'msg-form') sendMessage();
+  else if (f.id === 'compose-form') submitCompose(f);
   else if (f.id === 'note-form') {
     const input = $('#note-input'), text = input.value.trim();
     if (!text) return;
@@ -890,21 +1090,11 @@ document.addEventListener('submit', async (e) => {
   else if (f.id === 'family-form') $('#f-name').blur();
 });
 
-function sendMessage() {
-  const input = $('#msg-input'), text = input.value.trim();
-  if (!text) return;
-  input.value = '';
-  save(backend.add('messages', { text, author: state.me.id, ts: Date.now() }));
-  input.focus();
-}
-function autoGrow(el) { if (!el) return; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 140) + 'px'; }
-document.addEventListener('input', (e) => { if (e.target.id === 'msg-input') autoGrow(e.target); });
+document.addEventListener('input', (e) => { if (e.target.form?.id === 'member-form' && e.target.name === 'name') updatePhotoPreview(); });
 document.addEventListener('keydown', (e) => {
-  // Entrée envoie le message, Maj+Entrée fait un retour à la ligne.
-  if (e.target.id === 'msg-input' && e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendMessage(); }
   if (pin && /^[0-9]$/.test(e.key)) { e.preventDefault(); pinKey(e.key); return; }
   if (pin && e.key === 'Backspace') { e.preventDefault(); pinKey('del'); return; }
-  if (e.key === 'Escape' && $('#modal-root').innerHTML && !$('#member-form[data-first="1"]')) { pin = null; closeModal(); }
+  if (e.key === 'Escape' && $('#modal-root').innerHTML && !$('#member-form[data-first="1"]') && !cardDone) { pin = null; closeModal(); }
 });
 
 /* ================= Thème, horloge, mode tablette ================= */
@@ -922,9 +1112,15 @@ async function applyTablet() {
   } else if (!on && wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
   resetIdle();
 }
+let maisonTimer = null;
 function resetIdle() {
-  clearTimeout(idleTimer);
+  clearTimeout(idleTimer); clearTimeout(maisonTimer);
   if (ls.get('maison-tablet') !== '1') return;
+  // Sur la tablette, si quelqu'un oublie de se déconnecter, on revient au compte Maison après 3 min.
+  const maison = state.members.find(isMaison);
+  if (maison && state.me && !isMaison(state.me)) {
+    maisonTimer = setTimeout(() => { if (!$('#modal-root').innerHTML) startAs(maison, { quiet: true }); }, 180000);
+  }
   idleTimer = setTimeout(() => {
     if (state.view !== 'accueil' && !$('#modal-root').innerHTML && $('#main')) go('accueil');
   }, 120000);
@@ -932,7 +1128,7 @@ function resetIdle() {
 ['pointerdown', 'keydown'].forEach((ev) => addEventListener(ev, resetIdle, { passive: true }));
 
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) { applyTablet(); markSeen(); refresh(); }
+  if (!document.hidden) { applyTablet(); refresh(); }
 });
 
 let lastDay = todayStr();
