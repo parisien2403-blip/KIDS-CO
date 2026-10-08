@@ -174,7 +174,7 @@ const save = (p) => Promise.resolve(p).catch((e) => { console.error(e); toast('E
 /* ================= État ================= */
 const state = {
   user: null, me: null, family: null,
-  members: [], events: [], messages: [], notes: [], cours: [], edtNotes: [], edtConfig: {}, presence: [], missions: [], push: [],
+  members: [], events: [], messages: [], notes: [], cours: [], edtNotes: [], edtConfig: {}, absences: [], presence: [], missions: [], push: [],
   view: 'accueil',
   month: (() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); })(),
   selected: todayStr(),
@@ -814,6 +814,7 @@ async function enter(user) {
     backend.subscribe('messages', onMessages, { limit: 300 }),
     backend.subscribe('cours', (list) => { state.cours = list; refresh(); }),
     backend.subscribe('edtNotes', onEdtNotes),
+    backend.subscribe('absences', (list) => { state.absences = list; refresh(); }),
     backend.subscribe('edtConfig', (list) => { state.edtConfig = list.find((x) => x.id === 'main') || {}; refresh(); }),
     backend.subscribe('presence', onPresence),
     backend.subscribe('missions', onMissions),
@@ -1111,10 +1112,10 @@ const VIEWS = {
           ${hourLines}
           ${list.map((c) => {
             const top = (toMin(c.start) - minH * 60) * PPM, h = Math.max(30, (toMin(c.end) - toMin(c.start)) * PPM - 3);
-            const ns = notesFor(c.id, k), cancel = ns.some((n) => EDT_TYPES[n.type]?.cancel);
-            return `<button class="edt-block ${cancel ? 'cancel' : ''} ${ns.length ? 'has-notes' : ''}" style="top:${top}px;height:${h}px;--c:${esc(c.color || '#4FB9E8')}" data-action="open-course" data-id="${esc(c.id)}" data-date="${k}">
+            const ns = notesFor(c.id, k), abs = absenceFor(c, k), cancel = !!abs || ns.some((n) => EDT_TYPES[n.type]?.cancel);
+            return `<button class="edt-block ${cancel ? 'cancel' : ''} ${ns.length || abs ? 'has-notes' : ''}" style="top:${top}px;height:${h}px;--c:${esc(c.color || '#4FB9E8')}" data-action="open-course" data-id="${esc(c.id)}" data-date="${k}">
               <b>${esc(c.subject)}</b><span>${esc(c.start)}–${esc(c.end)}${c.room ? ' · ' + esc(c.room) : ''}</span>${c.teacher && h > 62 ? `<span>${esc(c.teacher)}</span>` : ''}
-              ${ns.length ? `<span class="edt-badges">${ns.map((n) => `<i title="${esc(EDT_TYPES[n.type]?.label || '')}">${(EDT_TYPES[n.type]?.label || '💬').split(' ')[0]}</i>`).join('')}</span>` : ''}</button>`;
+              ${ns.length || abs ? `<span class="edt-badges">${abs ? '<i title="Prof absent">🚫</i>' : ''}${ns.map((n) => `<i title="${esc(EDT_TYPES[n.type]?.label || '')}">${(EDT_TYPES[n.type]?.label || '💬').split(' ')[0]}</i>`).join('')}</span>` : ''}</button>`;
           }).join('')}
           ${k === t && nowMin >= minH * 60 && nowMin <= maxH * 60 ? `<div class="edt-now" style="top:${(nowMin - minH * 60) * PPM}px"></div>` : ''}
         </div></div>`;
@@ -1281,14 +1282,16 @@ function timetableView() {
       <div class="edt-colbody tt-body" style="height:${height}px" data-action="edt-slot" data-day="${day}" data-minh="${minH}" data-ppm="${PPM}">${lines}
         ${items.map((c) => {
           const top = (toMin(c.start) - minH * 60) * PPM, h = Math.max(26, (toMin(c.end) - toMin(c.start)) * PPM - 3);
-          return `<button class="edt-block tt-block" style="top:${top}px;height:${h}px;--c:${esc(c.color || '#4FB9E8')}" data-action="edit-course" data-id="${esc(c.id)}">
+          const abs = absenceFor(c, ymd(addDays(mondayOf(new Date()), day - 1))); // absence cette semaine
+          return `<button class="edt-block tt-block ${abs ? 'cancel' : ''}" title="${abs ? esc('Prof absent ' + absRange(abs)) : ''}" style="top:${top}px;height:${h}px;--c:${esc(c.color || '#4FB9E8')}" data-action="edit-course" data-id="${esc(c.id)}">
             <b>${esc(c.subject)}</b><span>${esc(c.start)}–${esc(c.end)}</span>${c.room ? `<span>${esc(c.room)}</span>` : ''}${c.teacher && h > 70 ? `<span>${esc(c.teacher)}</span>` : ''}
-            ${c.weeks && c.weeks !== 'all' ? `<i class="tt-ab">${esc(c.weeks)}</i>` : ''}</button>`;
+            ${c.weeks && c.weeks !== 'all' ? `<i class="tt-ab">${esc(c.weeks)}</i>` : ''}${abs ? '<i class="tt-abs">🚫</i>' : ''}</button>`;
         }).join('')}</div></div>`;
   }).join('');
   return `${edtHead()}
     ${usesAB ? `<div class="seg ab-seg">${['A', 'B'].map((w) => `<button class="${ab === w ? 'on' : ''}" data-action="edt-ab" data-w="${w}">Semaine ${w}</button>`).join('')}
       <button class="${ab === 'all' ? 'on' : ''}" data-action="edt-ab" data-w="all">Les deux</button></div>` : ''}
+    ${absencesBox()}
     ${state.cours.length ? '<p class="small muted tt-tip">Touchez une case vide pour ajouter un cours à cette heure-là, ou un cours pour le modifier.</p>'
       : `<div class="card tint-lilac edt-empty"><h2>Remplissons l’emploi du temps 📚</h2><p class="muted">Touchez la grille au bon jour et à la bonne heure pour ajouter un cours (ou le bouton « + Cours »). Une matière peut avoir plusieurs jours, chacun avec ses horaires.</p></div>`}
     <div class="tt-grid" style="--n:${nDays}">
@@ -1330,12 +1333,68 @@ const fmtShort = (date) => parseYmd(date).toLocaleDateString('fr-FR', { weekday:
 function edtNoteLine(n) {
   return `<div class="edt-note t-${esc(n.type)}"><b>${esc(EDT_TYPES[n.type]?.label || '💬 Remarque')}</b>${n.text ? ' : ' + esc(n.text) : ''}</div>`;
 }
+/* Absences de professeurs (sur une période, éventuellement « jusqu'à nouvel ordre ») */
+function absenceFor(c, date) {
+  return state.absences.find((a) => date >= a.from && (!a.to || date <= a.to)
+    && (a.scope === 'teacher' ? c.teacher && norm(c.teacher) === a.teacherKey : a.courseId === c.id));
+}
+const shortDate = (d) => parseYmd(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+const absRange = (a) => (!a.to ? `depuis le ${shortDate(a.from)}, jusqu’à nouvel ordre` : a.from === a.to ? `le ${shortDate(a.from)}` : `du ${shortDate(a.from)} au ${shortDate(a.to)}`);
+function absenceWho(a) {
+  if (a.scope === 'teacher') return a.teacher;
+  const c = state.cours.find((x) => x.id === a.courseId);
+  return c ? `${c.subject}${c.teacher ? ' (' + c.teacher + ')' : ''}` : 'Cours';
+}
+function absencesBox() {
+  const t = todayStr(), list = state.absences.filter((a) => !a.to || a.to >= t).sort((a, b) => a.from.localeCompare(b.from));
+  if (!list.length) return '';
+  return `<div class="absences">${list.map((a) => `<div class="absence ${a.from <= t ? 'now' : ''}">
+    <span class="abs-ico">🚫</span><div class="abs-body"><b>${esc(absenceWho(a))}</b> ${a.scope === 'teacher' ? 'absent(e)' : '— prof absent'}
+      <div class="small">${esc(absRange(a))}${a.note ? ' · ' + esc(a.note) : ''}</div></div>
+    <button class="btn btn-sm" data-action="end-absence" data-id="${esc(a.id)}">De retour</button></div>`).join('')}</div>`;
+}
+function openAbsence(courseId, date) {
+  const c = state.cours.find((x) => x.id === courseId);
+  if (!c) return;
+  const from = date && date > todayStr() ? date : todayStr(), fri = ymd(addDays(mondayOf(parseYmd(from)), edtCfg().saturday ? 5 : 4));
+  $('#modal-root').innerHTML = `<div class="modal-backdrop" data-action="close-modal"><form class="modal" id="absence-form" data-id="${esc(c.id)}">
+    <h2 style="margin-bottom:6px">🚫 Prof absent</h2>
+    <p class="muted small" style="margin:0 0 14px">${esc(c.subject)}${c.teacher ? ' — ' + esc(c.teacher) : ''}. Les cours concernés seront barrés automatiquement sur toute la période.</p>
+    ${c.teacher ? `<div class="field"><span>Quels cours ?</span><div class="seg" style="margin:0">
+      <button type="button" class="on" data-action="abs-scope" data-v="teacher">Tous les cours de ${esc(c.teacher)}</button>
+      <button type="button" data-action="abs-scope" data-v="course">Ce cours seulement</button></div></div>` : ''}
+    <div class="field"><span>Combien de temps ?</span><div class="who abs-presets">
+      <button type="button" class="who-chip on" style="--c:#E2554A" data-action="abs-preset" data-from="${from}" data-to="${from}">Ce jour-là</button>
+      <button type="button" class="who-chip" style="--c:#E2554A" data-action="abs-preset" data-from="${from}" data-to="${fri}">Jusqu’à la fin de la semaine</button>
+      <button type="button" class="who-chip" style="--c:#E2554A" data-action="abs-preset" data-from="${from}" data-to="${ymd(addDays(parseYmd(fri), 7))}">2 semaines</button>
+      <button type="button" class="who-chip" style="--c:#E2554A" data-action="abs-preset" data-from="${from}" data-to="">Jusqu’à nouvel ordre</button></div></div>
+    <div class="row"><label class="field"><span>Du</span><input type="date" name="from" value="${from}" required></label>
+      <label class="field"><span>Au (vide = jusqu’à nouvel ordre)</span><input type="date" name="to" value="${from}"></label></div>
+    <label class="field"><span>Précision (facultatif)</span><input type="text" name="note" maxlength="120" placeholder="Ex. remplacé par une étude en CDI"></label>
+    <div class="error"></div>
+    <div class="modal-actions"><span class="grow"></span><button type="button" class="btn" data-action="close-modal-btn">Annuler</button><button class="btn btn-primary">Enregistrer l’absence</button></div>
+  </form></div>`;
+  $('#absence-form').dataset.scope = c.teacher ? 'teacher' : 'course';
+}
+function submitAbsence(f) {
+  const c = state.cours.find((x) => x.id === f.dataset.id), from = f.from.value, to = f.to.value, err = f.querySelector('.error');
+  if (!c || !from) return;
+  if (to && to < from) { err.textContent = 'La date de fin doit être après la date de début.'; return; }
+  const scope = f.dataset.scope;
+  const a = { scope, courseId: c.id, teacher: c.teacher || '', teacherKey: norm(c.teacher), from, to, note: f.note.value.trim(), author: state.me.id, ts: Date.now() };
+  save(backend.add('absences', a));
+  closeModal();
+  const who = scope === 'teacher' ? c.teacher : `${c.subject}${c.teacher ? ' (' + c.teacher + ')' : ''}`;
+  toast(`🚫 ${who} : absence enregistrée ${absRange(a)}`);
+  notify('all', { title: `🚫 Prof absent : ${who}`, body: `${cap(absRange(a))}${a.note ? ' — ' + a.note : ''}`, tag: 'abs', view: 'edt' });
+}
+
 function courseRow(c, date) {
-  const ns = notesFor(c.id, date), cancel = ns.some((n) => EDT_TYPES[n.type]?.cancel);
+  const ns = notesFor(c.id, date), abs = absenceFor(c, date), cancel = !!abs || ns.some((n) => EDT_TYPES[n.type]?.cancel);
   return `<button class="edt-row ${cancel ? 'cancel' : ''}" style="--c:${esc(c.color || '#4FB9E8')}" data-action="open-course" data-id="${esc(c.id)}" data-date="${date}">
     <span class="edt-time">${esc(c.start)}<small>${esc(c.end)}</small></span>
     <span class="edt-info"><b>${esc(c.subject)}</b><span class="muted small">${[c.room && 'Salle ' + c.room, c.teacher].filter(Boolean).map(esc).join(' · ')}</span>
-      ${ns.map(edtNoteLine).join('')}</span></button>`;
+      ${abs ? `<div class="edt-note t-absent"><b>🚫 Prof absent</b> ${esc(absRange(abs))}${abs.note ? ' : ' + esc(abs.note) : ''}</div>` : ''}${ns.map(edtNoteLine).join('')}</span></button>`;
 }
 function edtDashboardCard() {
   if (!state.cours.length) return '';
@@ -1388,7 +1447,7 @@ function openCourse(id, date, keepInput = false) {
       <input type="text" name="text" maxlength="200" value="${esc(typed)}" placeholder="Précision (facultatif) : salle B204, chapitre 3…">
       <button class="btn btn-primary btn-sm">${ICON.plus} Ajouter</button>
     </form>
-    <div class="modal-actions">${c ? `<button class="btn" data-action="edit-course" data-id="${esc(c.id)}">✏️ Modifier le cours</button>` : ''}<span class="grow"></span>
+    <div class="modal-actions">${c ? `<button class="btn" data-action="edit-course" data-id="${esc(c.id)}">✏️ Modifier le cours</button><button class="btn btn-absent" data-action="open-absence" data-id="${esc(c.id)}" data-date="${date}">🚫 Prof absent</button>` : ''}<span class="grow"></span>
       <button class="btn btn-primary" data-action="close-modal-btn">Fermer</button></div>
   </div></div>`;
 }
@@ -1413,6 +1472,7 @@ function openCourseEdit(c, { day = 1, start = '08:00' } = {}) {
       ${[['all', 'Toutes les semaines'], ['A', 'Semaine A seulement'], ['B', 'Semaine B seulement']].map(([v, l]) => `<option value="${v}" ${(c.weeks || 'all') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
     <div class="field"><span>Couleur</span><div class="colors">${SUBJECT_COLORS.map((x) => `<button type="button" class="color-dot ${x === c.color ? 'on' : ''}" style="--c:${x}" data-action="pick-color" data-color="${x}" aria-label="Couleur"></button>`).join('')}</div></div>
     <div class="error"></div>
+    ${isNew ? '' : `<button type="button" class="btn btn-absent absent-wide" data-action="open-absence" data-id="${esc(c.id)}">🚫 Prof absent… <small>(un jour, une semaine, jusqu’à nouvel ordre)</small></button>`}
     <div class="modal-actions">${isNew ? '' : `<button type="button" class="btn btn-danger" data-action="delete-course">${ICON.trash} Supprimer</button>`}<span class="grow"></span>
       <button type="button" class="btn" data-action="close-modal-btn">Annuler</button><button class="btn btn-primary">Enregistrer</button></div>
   </form></div>`;
@@ -1960,6 +2020,22 @@ const ACTIONS = {
     if ($('#slots').querySelectorAll('.slot-line').length <= 1) return toast('Il faut au moins un jour.');
     el.closest('.slot-line').remove();
   },
+  'open-absence'(el) { openAbsence(el.dataset.id, el.dataset.date); },
+  'abs-scope'(el) {
+    const f = el.closest('form'); f.dataset.scope = el.dataset.v;
+    f.querySelectorAll('[data-action=abs-scope]').forEach((b) => b.classList.toggle('on', b === el));
+  },
+  'abs-preset'(el) {
+    const f = el.closest('form'); f.from.value = el.dataset.from; f.to.value = el.dataset.to;
+    f.querySelectorAll('[data-action=abs-preset]').forEach((b) => b.classList.toggle('on', b === el));
+  },
+  'end-absence'(el) {
+    const a = state.absences.find((x) => x.id === el.dataset.id);
+    if (!a || !confirm(`${absenceWho(a)} est de retour ? L’absence s’arrête aujourd’hui (les jours passés restent notés).`)) return;
+    const y = ymd(addDays(new Date(), -1));
+    if (a.from > y) save(backend.remove('absences', a.id)); else save(backend.update('absences', a.id, { to: y }));
+    toast('Absence terminée ✅');
+  },
   'del-edt-note'(el) { save(backend.remove('edtNotes', el.dataset.id)); },
   'select-day'(el) {
     state.selected = el.dataset.date;
@@ -2052,6 +2128,7 @@ document.addEventListener('submit', async (e) => {
     const crs = state.cours.find((x) => x.id === box.dataset.id);
     notify('all', { title: `📚 ${crs ? crs.subject : 'Lycée'} — ${EDT_TYPES[f.type.value]?.label || 'Info'}`, body: `${cap(fmtShort(box.dataset.date))}${text ? ' : ' + text : ''}`, tag: 'edt-' + box.dataset.date, view: 'edt' });
     toast('Info ajoutée — toute la famille la voit');
+  } else if (f.id === 'absence-form') { submitAbsence(f); return;
   } else if (f.id === 'edt-settings-form') {
     const ab = f.ab.value, mon = mondayOf(new Date());
     save(backend.set('edtConfig', 'main', { title: f.title.value.trim() || 'Lycée Max Linder', studentId: f.studentId.value, saturday: f.saturday.checked,

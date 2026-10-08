@@ -878,3 +878,16 @@ img.avatar{width:42px;height:42px}
   .me-card .mini-id{display:none}
   .me-card{margin-top:12px}
 }
+
+/* ---------- Prof absent ---------- */
+.btn-absent{border-color:#EC6A5E;color:#B4231A}
+.absent-wide{width:100%;flex-direction:column;gap:0;margin:2px 0 10px}
+.absent-wide small{font-size:11.5px;font-weight:600;opacity:.75}
+.absences{display:flex;flex-direction:column;gap:8px;margin:0 0 14px}
+.absence{display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:14px;background:#FDE3DF;border:1.5px solid #F2A79E;color:#7A1B14}
+.absence:not(.now){opacity:.8;background:#FFF1EE}
+.abs-ico{font-size:22px}
+.abs-body{flex:1;min-width:0}
+.absence .btn{background:#fff;border-color:#F2A79E}
+.tt-abs{position:absolute;bottom:3px;right:4px;font-style:normal;font-size:13px}
+.abs-presets .who-chip{font-size:13px}

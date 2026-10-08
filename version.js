@@ -2,6 +2,14 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '2.7', date: '2026-10-09', title: 'Prof absent sur une période',
+    items: [
+      'Bouton « 🚫 Prof absent » sur chaque cours : ce jour-là, la semaine, 2 semaines, des dates précises ou jusqu’à nouvel ordre',
+      'Pour tous les cours de ce prof ou ce cours seulement ; les cours concernés sont barrés automatiquement',
+      'Liste des absences en cours au-dessus de l’emploi du temps, bouton « De retour » ; notification à la famille',
+    ],
+  },
+  {
     version: '2.6.1', date: '2026-10-09', title: 'Petits écrans de PC',
     items: ['La barre de gauche tient sur les écrans peu hauts : « Changer d’utilisateur » toujours visible'],
   },
