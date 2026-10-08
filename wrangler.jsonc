@@ -1,6 +1,8 @@
 {
   "name": "kids-co",
   "compatibility_date": "2025-09-01",
+  // Active l'adresse publique https://kids-co.<compte>.workers.dev
+  "workers_dev": true,
   "assets": {
     "directory": "./"
   }
