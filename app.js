@@ -63,6 +63,7 @@ const ICON = {
   cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg>',
   chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.6A8 8 0 1 1 21 12z"/></svg>',
   star: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>',
+  verif: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
   book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V5a2 2 0 0 1 2-2h13v16H6.5A2.5 2.5 0 0 0 4 21.5v-2"/><path d="M8 7h7M8 11h5"/></svg>',
   gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
@@ -351,7 +352,7 @@ const colorPicker = (current) => `<div class="colors">${COLORS.map((c) =>
 
 function evItem(ev, withDate) {
   const meta = [CATEGORIES[ev.category] || '', withDate ? fmtLong(parseYmd(withDate)) : '', ev.repeat && ev.repeat !== 'none' ? '🔁' : '',
-    ev.alert?.on ? '🔔' : '', ev.notes ? '📝' : ''].filter(Boolean).join(' · ');
+    ev.alert?.on ? '🔔' : '', ev.verify ? '📌 À vérifier' : '', ev.notes ? '📝' : ''].filter(Boolean).join(' · ');
   const imp = IMPORTANCE[ev.importance || 0];
   return `<button class="ev imp${ev.importance || 0}" style="--c:${esc(evColor(ev))}" data-action="edit-event" data-id="${esc(ev.id)}">
     <span class="ev-time">${ev.allDay || !ev.time ? '<span class="ev-allday">Journée</span>' : `${esc(ev.time)}${ev.end ? `<small>${esc(ev.end)}</small>` : ''}`}</span>
@@ -669,13 +670,14 @@ async function enter(user) {
   state.loadedMessages = false;
   state.membersLoaded = false;
   state.edtNotesLoaded = false;
+  doneBefore = null;
   onlineBefore = null;
   state.autoLogin = ls.get('kc-ask') !== '1';
   backend.setFamily(family.id);
   renderWho();
   unsubs.push(
     backend.subscribe('membres', onMembers),
-    backend.subscribe('events', (list) => { state.events = list; refresh(); checkAlerts(); }),
+    backend.subscribe('events', onEvents),
     backend.subscribe('notes', (list) => { state.notes = list; refresh(); }),
     backend.subscribe('messages', onMessages, { limit: 300 }),
     backend.subscribe('cours', (list) => { state.cours = list; refresh(); }),
@@ -721,14 +723,16 @@ function onMessages(list) {
 }
 
 /* ================= Coquille (navigation) ================= */
+// [id, libellé, icône, libellé court (barre du bas), masqué dans la barre du bas du téléphone]
 const NAV = [
-  ['accueil', 'Accueil', 'home'], ['agenda', 'Agenda', 'cal'], ['edt', 'Emploi du temps', 'book', 'Lycée'],
-  ['messages', 'Messages', 'chat'], ['important', 'Pense-bête', 'star', 'Notes'], ['reglages', 'Réglages', 'gear'],
+  ['accueil', 'Accueil', 'home'], ['agenda', 'Agenda', 'cal'], ['verif', 'À vérifier', 'verif', 'Vérifier'],
+  ['edt', 'Emploi du temps', 'book', 'Lycée'], ['messages', 'Messages', 'chat'],
+  ['important', 'Pense-bête', 'star', 'Notes', true], ['reglages', 'Réglages', 'gear'],
 ];
 function navButtons(short = false) {
-  const n = unreadCount();
-  return NAV.map(([id, label, icon, s]) => `<button class="nav-btn ${state.view === id ? 'active' : ''}" data-action="nav" data-view="${id}">
-    ${ICON[icon]}<span>${short && s ? s : label}</span>${id === 'messages' && n ? `<span class="badge">${n}</span>` : ''}</button>`).join('');
+  const badges = { messages: unreadCount(), verif: verifItems().filter((i) => !i.done).length };
+  return NAV.filter((n) => !(short && n[4])).map(([id, label, icon, s]) => `<button class="nav-btn ${state.view === id ? 'active' : ''}" data-action="nav" data-view="${id}">
+    ${ICON[icon]}<span>${short && s ? s : label}</span>${badges[id] ? `<span class="badge">${badges[id]}</span>` : ''}</button>`).join('');
 }
 function renderShell() {
   $('#app').innerHTML = `<div class="shell">
@@ -826,7 +830,7 @@ const VIEWS = {
       const k = ymd(d), list = map[k] || [];
       return `<button class="cal-day ${d.getMonth() !== m.getMonth() ? 'out' : ''} ${k === t ? 'today' : ''} ${k === sel ? 'sel' : ''}" data-action="select-day" data-date="${k}">
         <span class="num">${d.getDate()}</span>
-        ${list.slice(0, 3).map((ev) => `<span class="chip imp${ev.importance || 0}" style="--c:${esc(evColor(ev))}">${ev.allDay || !ev.time ? '' : esc(ev.time) + ' '}${esc(ev.title)}</span>`).join('')}
+        ${list.slice(0, 3).map((ev) => `<span class="chip imp${ev.importance || 0}" style="--c:${esc(evColor(ev))}">${ev.verify ? '📌 ' : ''}${ev.allDay || !ev.time ? '' : esc(ev.time) + ' '}${esc(ev.title)}</span>`).join('')}
         ${list.length > 3 ? `<span class="more">+${list.length - 3}</span>` : ''}
         ${list.length ? `<span class="dots">${list.slice(0, 4).map((ev) => `<span class="dot imp${ev.importance || 0}" style="--c:${esc(evColor(ev))}"></span>`).join('')}</span>` : ''}
       </button>`;
@@ -856,6 +860,21 @@ const VIEWS = {
         <button class="${box === 'out' ? 'on' : ''}" data-action="box" data-box="out">📤 Boîte d’envoi</button></div>
       <div class="list mail-list">${list.map((m) => mailItem(m, box)).join('')
         || `<div class="empty">${box === 'out' ? 'Vous n’avez encore envoyé aucun message.' : 'Aucun message reçu pour l’instant.'}</div>`}</div>`;
+  },
+
+  verif() {
+    const all = verifItems(), f = state.verifFilter || 'todo';
+    const late = all.filter((i) => !i.done && dueInfo(i).late).length, todo = all.filter((i) => !i.done).length - late, done = all.filter((i) => i.done).length;
+    const list = f === 'todo' ? all.filter((i) => !i.done) : f === 'done' ? all.filter((i) => i.done) : all;
+    const filt = (v, l) => `<button class="${f === v ? 'on' : ''}" data-action="verif-filter" data-v="${v}">${l}</button>`;
+    return `<div class="view-head"><div><div class="eyebrow">Les choses à ne surtout pas rater</div><h1>À vérifier</h1></div>
+        <button class="btn btn-primary" data-action="new-verif">${ICON.plus} Ajouter</button></div>
+      <div class="view-head" style="margin-top:-8px"><div class="verif-stats">
+          ${late ? `<span class="stat late"><b>${late}</b> en retard</span>` : ''}<span class="stat todo"><b>${todo}</b> à faire</span><span class="stat ok"><b>${done}</b> validée${done > 1 ? 's' : ''}</span></div>
+        <div class="seg filters">${filt('todo', 'À faire')}${filt('done', 'Validées')}${filt('all', 'Tout')}</div></div>
+      <div class="verif-list">${list.map(verifCard).join('')
+        || `<div class="card empty-verif"><h2>${f === 'done' ? 'Rien de validé pour l’instant' : 'Tout est fait 🎉'}</h2>
+          <p class="muted">Pour ajouter quelque chose ici, cochez « 📌 À vérifier » en créant un élément du planning, ou utilisez le bouton « Ajouter ».</p></div>`}</div>`;
   },
 
   important() {
@@ -1177,6 +1196,83 @@ function openEdtSettings() {
   </form></div>`;
 }
 
+/* ================= À vérifier (éléments très importants à valider) ================= */
+// Chaque élément « À vérifier » du planning (et chaque fois, s'il se répète) se valide séparément.
+// La validation est enregistrée dans l'événement : done[date] = { by, at } — visible par tous en direct.
+function verifItems() {
+  const today = todayStr(), from = ymd(addDays(new Date(), -60)), to = ymd(addDays(new Date(), 60)), items = [];
+  for (const ev of state.events) {
+    if (!ev.verify) continue;
+    const occs = occurrences(ev, from, to), done = ev.done || {};
+    let nextShown = false;
+    for (const occ of occs) {
+      if (done[occ]) items.push({ ev, occ, done: done[occ] });
+      else if (occ < today) items.push({ ev, occ });                    // en retard : toujours affiché
+      else if (!nextShown) { items.push({ ev, occ }); nextShown = true; } // à venir : seulement la prochaine fois
+    }
+  }
+  const t = (i) => `${i.occ}T${i.ev.allDay || !i.ev.time ? '23:59' : i.ev.time}`;
+  return items.sort((a, b) => (a.done ? 1 : 0) - (b.done ? 1 : 0) || (a.done ? b.done.at - a.done.at : t(a).localeCompare(t(b))));
+}
+function dueInfo(i) {
+  const today = todayStr(), days = Math.round((parseYmd(i.occ) - parseYmd(today)) / 864e5);
+  const timePassed = i.ev.time && !i.ev.allDay && new Date(`${i.occ}T${i.ev.time}`) < new Date();
+  if (days < 0) return { late: true, label: `⚠️ En retard (${days === -1 ? 'hier' : `il y a ${-days} jours`})`, cls: 'late' };
+  if (days === 0) return timePassed ? { late: true, label: '⚠️ Aujourd’hui, heure passée', cls: 'late' } : { label: '⏳ Aujourd’hui', cls: 'soon' };
+  if (days === 1) return { label: '⏳ Demain', cls: 'soon' };
+  return { label: `Dans ${days} jours`, cls: days <= 3 ? 'soon' : 'ok' };
+}
+function verifCard(i) {
+  const { ev, occ, done } = i, d = parseYmd(occ);
+  const imp = IMPORTANCE[ev.importance || 0], due = done ? null : dueInfo(i), by = done ? member(done.by) : null;
+  const dateTxt = cap(d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' }));
+  const people = (ev.who && ev.who.length ? ev.who : []).map((id) => member(id));
+  const al = ev.alert?.on ? ALERT_OFFSETS.find(([v]) => String(v) === String(ev.alert.offset)) : null;
+  // Le coup de tampon ne s'anime qu'une fois, juste après la validation.
+  const key = `${ev.id}|${occ}`, fresh = done && Date.now() - done.at < 4000 && !stamped.has(key);
+  if (fresh) stamped.add(key);
+  return `<div class="verif ${done ? 'done' : due.late ? 'late' : ''}" style="--c:${done ? '#2FA84F' : esc(evColor(ev))}">
+    <button class="vcheck" data-action="${done ? 'verif-undo' : 'verif-done'}" data-id="${esc(ev.id)}" data-occ="${occ}" aria-label="${done ? 'Annuler la validation' : 'C’est fait'}">${done ? '✓' : ''}</button>
+    <button class="vbody" data-action="edit-event" data-id="${esc(ev.id)}">
+      <span class="vtitle">${imp.short ? `<span class="imp-tag">${imp.short}</span>` : ''}<span class="t">${esc(ev.title)}</span></span>
+      <span class="vmeta"><span>📅 ${esc(dateTxt)}${ev.allDay || !ev.time ? '' : ' · ' + esc(ev.time)}</span>
+        ${ev.alert?.on ? `<span>🔔 ${esc(ev.alert.at ? 'Rappel programmé' : 'Rappel ' + (al ? al[1].toLowerCase() : ''))}</span>` : ''}
+        ${people.map((m) => `<span>${avatar(m)} ${esc(m.name)}</span>`).join('')}
+        ${ev.repeat && ev.repeat !== 'none' ? '<span>🔁 Répété</span>' : ''}${ev.notes ? `<span>📝 ${esc(ev.notes.slice(0, 40))}</span>` : ''}</span>
+    </button>
+    ${done ? `<div class="stamp ${fresh ? 'stamp-in' : ''}">VALIDÉ<small>✓ ${new Date(done.at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} · ${esc(by.name.toUpperCase())}</small></div>` : ''}
+    <div class="vright">${done
+      ? `<div class="who-did">Validé par ${esc(by.name)}<br>le ${new Date(done.at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} à ${fmtTime(done.at)}</div>
+         <button class="btn btn-sm" data-action="verif-undo" data-id="${esc(ev.id)}" data-occ="${occ}">Annuler</button>`
+      : `<span class="due ${due.cls}">${due.label}</span><button class="btn btn-valid btn-sm" data-action="verif-done" data-id="${esc(ev.id)}" data-occ="${occ}">✓ C’est fait</button>`}</div>
+  </div>`;
+}
+function setDone(id, occ, value) {
+  const ev = state.events.find((x) => x.id === id);
+  if (!ev) return;
+  const done = { ...(ev.done || {}) };
+  if (value) done[occ] = value; else delete done[occ];
+  ev.done = done; // affichage immédiat, la synchronisation suit
+  save(backend.update('events', id, { done }));
+  refresh();
+}
+let doneBefore = null;
+const stamped = new Set();
+function onEvents(list) {
+  const now = new Set();
+  for (const ev of list) for (const [occ, d] of Object.entries(ev.done || {})) now.add(`${ev.id}|${occ}|${d.by}`);
+  if (doneBefore && state.me) {
+    for (const k of now) if (!doneBefore.has(k)) {
+      const [id, , by] = k.split('|'), ev = list.find((x) => x.id === id);
+      if (by !== state.me.id && ev) toast(`✅ ${member(by).name} a validé « ${ev.title} »`);
+    }
+  }
+  doneBefore = now;
+  state.events = list;
+  refresh();
+  checkAlerts();
+}
+
 function noteItem(n) {
   const a = member(n.author);
   return `<div class="note ${n.important ? 'imp' : ''} ${n.done ? 'done' : ''}">
@@ -1188,9 +1284,9 @@ function noteItem(n) {
 }
 
 /* ================= Fenêtre rendez-vous ================= */
-function openEventModal(ev, date) {
+function openEventModal(ev, date, { verify = false } = {}) {
   const isNew = !ev;
-  ev = ev || { title: '', date: date || todayStr(), time: '', end: '', allDay: false, category: 'rdv', repeat: 'none', who: [], notes: '', importance: 0 };
+  ev = ev || { title: '', date: date || todayStr(), time: '', end: '', allDay: false, category: 'rdv', repeat: 'none', who: [], notes: '', importance: verify ? 1 : 0, verify };
   const who = new Set(ev.who || []);
   const al = ev.alert || {};
   const alTo = new Set(al.to && al.to.length ? al.to : [state.me.id]);
@@ -1209,6 +1305,8 @@ function openEventModal(ev, date) {
       <label class="field ${(ev.repeat || 'none') === 'none' ? 'hidden' : ''}" id="until-f"><span>Jusqu’au (facultatif)</span><input type="date" name="until" value="${esc(ev.until || '')}"></label></div>
     <div class="field"><span>Qui est concerné ? (personne = toute la famille)</span><div class="who">
       ${state.members.filter((m) => !isMaison(m)).map((m) => `<button type="button" class="who-chip ${who.has(m.id) ? 'on' : ''}" style="--c:${esc(m.color)}" data-action="toggle-who" data-id="${esc(m.id)}">${esc(m.name)}</button>`).join('')}</div></div>
+    <label class="verif-flag"><input type="checkbox" name="verify" ${ev.verify ? 'checked' : ''}><div><b>📌 À vérifier — très important</b>
+      <div class="small" style="margin-top:2px">Apparaît dans le calendrier <u>et</u> dans l’onglet « À vérifier », jusqu’à ce que quelqu’un coche « C’est fait » (tampon VALIDÉ).</div></div></label>
     <div class="alert-box ${al.on ? 'on' : ''}">
       <label class="check-line" style="margin:0"><input type="checkbox" name="alertOn" ${al.on ? 'checked' : ''}> 🔔 <b>Alerte</b> <span class="small muted">— recevoir un rappel</span></label>
       <div class="alert-opts ${al.on ? '' : 'hidden'}">
@@ -1238,6 +1336,7 @@ function submitEvent(form) {
     time: fd.get('allDay') ? '' : fd.get('time'), end: fd.get('allDay') ? '' : fd.get('end'),
     category: fd.get('category'), repeat, until: repeat === 'none' ? '' : fd.get('until') || '', notes: fd.get('notes').trim(),
     importance: Number(form.dataset.imp) || 0,
+    verify: !!fd.get('verify'),
     who: [...form.querySelectorAll('.who-chip.on:not(.alert-to)')].map((b) => b.dataset.id),
   };
   if (!data.title || !data.date) return;
@@ -1345,6 +1444,10 @@ const ACTIONS = {
   },
   'toggle-ask'() { ls.set('kc-ask', ls.get('kc-ask') === '1' ? '0' : '1'); refresh(); },
   'new-event': (el) => openEventModal(null, el.dataset.date),
+  'new-verif': () => openEventModal(null, todayStr(), { verify: true }),
+  'verif-filter'(el) { state.verifFilter = el.dataset.v; refresh(); },
+  'verif-done'(el) { setDone(el.dataset.id, el.dataset.occ, { by: state.me.id, at: Date.now() }); toast('✅ Validé — tout le monde le voit'); },
+  'verif-undo'(el) { if (confirm('Retirer le tampon VALIDÉ ?')) setDone(el.dataset.id, el.dataset.occ, null); },
   'edit-event': (el) => { const ev = state.events.find((x) => x.id === el.dataset.id); if (ev) openEventModal(ev); },
   'close-modal': (el, e) => { if (e.target === el && !$('#member-form[data-first="1"]') && !cardDone) { pin = null; closeModal(); } },
   'toggle-who': (el) => el.classList.toggle('on'),
