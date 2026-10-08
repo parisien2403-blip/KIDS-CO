@@ -2,6 +2,10 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '2.1.2', date: '2026-10-08', title: 'Connexion Maison par le prénom',
+    items: ['On peut aussi taper « Maison » comme prénom, avec son code secret, puis « Se connecter »'],
+  },
+  {
     version: '2.1.1', date: '2026-10-08', title: 'Correction d’affichage',
     items: ['La carte Kids & Co n’est plus coupée en bas dans Réglages'],
   },

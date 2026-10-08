@@ -500,7 +500,8 @@ async function tryLogin({ name, pin, maison, remember }) {
   else {
     const n = norm(name);
     if (!n) return 'Entrez votre prénom.';
-    cands = state.members.filter((m) => !isMaison(m) && (norm(m.name) === n || norm(fullName(m)) === n));
+    cands = state.members.filter((m) => norm(m.name) === n || norm(fullName(m)) === n);
+    if (!cands.length && n === 'maison') cands = [state.members.find(isMaison) || (await createMaison())]; // « Maison » tapé comme prénom
     if (!cands.length) return `Personne ne s’appelle « ${name.trim()} » dans la famille. Vérifiez l’orthographe, ou demandez à un parent de créer votre compte.`;
   }
   for (const m of cands) {
