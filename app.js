@@ -1359,9 +1359,10 @@ function openCourseEdit(c, { day = 1, start = '08:00' } = {}) {
       <datalist id="subjects">${SUBJECTS.map((x) => `<option value="${x}">`).join('')}</datalist></label>
     <div class="row"><label class="field"><span>Professeur</span><input type="text" name="teacher" value="${esc(c.teacher)}" maxlength="60" placeholder="Ex. Mme Dupont"></label>
       <label class="field"><span>Salle</span><input type="text" name="room" value="${esc(c.room)}" maxlength="20" placeholder="Ex. B204"></label></div>
-    <div class="row"><label class="field"><span>Jour</span><select name="day">${EDT_DAYS.slice(0, cfg.saturday ? 6 : 5).map((d, i) => `<option value="${i + 1}" ${Number(c.day) === i + 1 ? 'selected' : ''}>${d}</option>`).join('')}</select></label>
-      <label class="field"><span>Début</span><input type="time" name="start" value="${esc(c.start)}" required></label>
-      <label class="field"><span>Fin</span><input type="time" name="end" value="${esc(c.end)}" required></label></div>
+    <div class="field"><span>Jours et horaires</span>
+      <div class="slots" id="slots">${slotLine(c, cfg)}</div>
+      <button type="button" class="btn btn-sm add-slot" data-action="add-slot">${ICON.plus} Ajouter un autre jour</button>
+      <small class="muted">${isNew ? 'Ajoutez tous les créneaux de cette matière dans la semaine, chacun avec ses horaires.' : 'Ajoutez d’autres jours pour cette matière : ils seront créés en plus de ce cours.'}</small></div>
     <label class="field"><span>Quelles semaines ?</span><select name="weeks">
       ${[['all', 'Toutes les semaines'], ['A', 'Semaine A seulement'], ['B', 'Semaine B seulement']].map(([v, l]) => `<option value="${v}" ${(c.weeks || 'all') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
     <div class="field"><span>Couleur</span><div class="colors">${SUBJECT_COLORS.map((x) => `<button type="button" class="color-dot ${x === c.color ? 'on' : ''}" style="--c:${x}" data-action="pick-color" data-color="${x}" aria-label="Couleur"></button>`).join('')}</div></div>
@@ -1371,17 +1372,32 @@ function openCourseEdit(c, { day = 1, start = '08:00' } = {}) {
   </form></div>`;
   setTimeout(() => $('#course-form [name=subject]')?.focus(), 50);
 }
+// Une ligne « jour + début + fin » ; une matière peut avoir plusieurs créneaux dans la semaine.
+function slotLine(c, cfg = edtCfg()) {
+  return `<div class="slot-line">
+    <select class="s-day" aria-label="Jour">${EDT_DAYS.slice(0, cfg.saturday ? 6 : 5).map((d, i) => `<option value="${i + 1}" ${Number(c.day) === i + 1 ? 'selected' : ''}>${d}</option>`).join('')}</select>
+    <input type="time" class="s-start" value="${esc(c.start)}" required aria-label="Début">
+    <span class="slot-arrow">→</span>
+    <input type="time" class="s-end" value="${esc(c.end)}" required aria-label="Fin">
+    <button type="button" class="del" data-action="del-slot" aria-label="Retirer ce jour">${ICON.trash}</button></div>`;
+}
 function submitCourse(form) {
   const fd = new FormData(form), err = form.querySelector('.error');
-  const data = { subject: fd.get('subject').trim(), teacher: fd.get('teacher').trim(), room: fd.get('room').trim(), day: Number(fd.get('day')),
-    start: fd.get('start'), end: fd.get('end'), weeks: fd.get('weeks'), color: form.dataset.color };
-  if (!data.subject) return;
-  if (toMin(data.end) <= toMin(data.start)) { err.textContent = 'L’heure de fin doit être après l’heure de début.'; return; }
+  const base = { subject: fd.get('subject').trim(), teacher: fd.get('teacher').trim(), room: fd.get('room').trim(), weeks: fd.get('weeks'), color: form.dataset.color };
+  if (!base.subject) return;
+  const slots = [...form.querySelectorAll('.slot-line')].map((l) => ({ day: Number(l.querySelector('.s-day').value), start: l.querySelector('.s-start').value, end: l.querySelector('.s-end').value }));
+  if (!slots.length) { err.textContent = 'Ajoutez au moins un jour.'; return; }
+  const bad = slots.find((x) => !x.start || !x.end || toMin(x.end) <= toMin(x.start));
+  if (bad) { err.textContent = `${EDT_DAYS[bad.day - 1]} : l’heure de fin doit être après l’heure de début.`; return; }
   const id = form.dataset.id;
-  if (id) save(backend.update('cours', id, { ...data, editedBy: state.me.id }));
-  else save(backend.add('cours', { ...data, author: state.me.id, ts: Date.now() }));
+  const [first, ...others] = slots;
+  if (id) save(backend.update('cours', id, { ...base, ...first, editedBy: state.me.id }));
+  else save(backend.add('cours', { ...base, ...first, author: state.me.id, ts: Date.now() }));
+  others.forEach((x, i) => save(backend.add('cours', { ...base, ...x, author: state.me.id, ts: Date.now() + i + 1 })));
   closeModal();
-  toast(id ? 'Cours modifié — visible par toute la famille' : 'Cours ajouté — il se répète chaque semaine');
+  const n = slots.length;
+  toast(id ? `Cours modifié${others.length ? ` + ${others.length} jour${others.length > 1 ? 's' : ''} ajouté${others.length > 1 ? 's' : ''}` : ''} — visible par toute la famille`
+    : `${base.subject} ajouté${n > 1 ? ` sur ${n} jours` : ''} — chaque semaine`);
 }
 
 function openEdtSettings() {
@@ -1875,6 +1891,16 @@ const ACTIONS = {
     save(backend.remove('cours', id));
     state.edtNotes.filter((n) => n.courseId === id).forEach((n) => save(backend.remove('edtNotes', n.id)));
     closeModal(); toast('Cours supprimé');
+  },
+  'add-slot'() {
+    const box = $('#slots'), lines = box.querySelectorAll('.slot-line'), last = lines[lines.length - 1];
+    const max = edtCfg().saturday ? 6 : 5;
+    const prev = last ? { day: Number(last.querySelector('.s-day').value), start: last.querySelector('.s-start').value, end: last.querySelector('.s-end').value } : { day: 0, start: '08:00', end: '09:00' };
+    box.insertAdjacentHTML('beforeend', slotLine({ ...prev, day: Math.min(max, prev.day + 1) || 1 }));
+  },
+  'del-slot'(el) {
+    if ($('#slots').querySelectorAll('.slot-line').length <= 1) return toast('Il faut au moins un jour.');
+    el.closest('.slot-line').remove();
   },
   'del-edt-note'(el) { save(backend.remove('edtNotes', el.dataset.id)); },
   'select-day'(el) {

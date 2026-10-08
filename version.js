@@ -2,6 +2,10 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '2.4', date: '2026-10-09', title: 'Emploi du temps : plusieurs jours par matière',
+    items: ['Dans la fiche d’un cours, « Ajouter un autre jour » : tous les créneaux d’une matière en une fois, chacun avec ses horaires'],
+  },
+  {
     version: '2.3.1', date: '2026-10-09', title: 'Notifications sur iPhone',
     items: ['Réglages explique comment activer les notifications sur iPhone / iPad (installer l’appli sur l’écran d’accueil)'],
   },
