@@ -55,6 +55,16 @@ La synchronisation entre appareils utilise **Firebase** (Google), dont l'offre g
 - À la création, l'appli génère la **carte d'identité Kids & Co** du membre ; on la retrouve dans *Réglages*.
 - Le compte **Maison** est celui de la tablette de la cuisine : il active le mode tablette, et la tablette y revient toute seule après 3 minutes si quelqu'un oublie de se déconnecter.
 
+### Agenda
+- Vue **mois par mois** ; chaque élément a une catégorie, une date, des horaires, un **niveau d'importance** (Normal / Important / Urgent) et peut se **répéter** (tous les jours, en semaine, chaque semaine, toutes les 2 semaines, chaque mois, chaque année) jusqu'à une date.
+- Case **🔔 Alerte** : rappel à l'heure, quelques minutes avant, la veille ou à une date et heure précises, pour les personnes choisies. Le rappel sonne et s'affiche sur les appareils où ces personnes sont connectées (l'appli doit être ouverte ou en arrière-plan ; la tablette Maison, toujours allumée, est idéale).
+
+### Emploi du temps du lycée
+- Grille de la semaine (jour par jour sur téléphone), semaines A / B, samedi en option.
+- **Tout le monde peut ajouter, modifier ou supprimer un cours.**
+- Pour un jour précis : prof absent, cours annulé, changement de salle ou d'horaire, contrôle, devoir, sortie, grève, remarque. Le cours apparaît barré s'il n'a pas lieu.
+- L'emploi du temps du jour s'affiche aussi sur l'accueil.
+
 ### Messagerie
 - Chaque compte a sa **boîte de réception** et sa **boîte d'envoi**. On écrit à une personne, à plusieurs ou à toute la famille ; chacun ne voit que les messages qui lui sont adressés.
 - L'**agenda** et le **pense-bête** restent communs à toute la famille.

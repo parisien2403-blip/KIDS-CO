@@ -504,3 +504,72 @@ img.avatar{width:42px;height:42px}
 .imp-seg button{white-space:nowrap}
 @media (max-width:600px){ .imp-seg button{font-size:13px;padding:10px 4px} }
 .alert-to.on .avatar{box-shadow:0 0 0 2px #fff}
+
+/* ---------- Emploi du temps ---------- */
+:root{--lilac:#F0ECFC;--lilac-line:#C9BEF0}
+:root[data-theme="dark"]{--lilac:rgba(155,123,224,.10);--lilac-line:rgba(155,123,224,.38)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--lilac:rgba(155,123,224,.10);--lilac-line:rgba(155,123,224,.38)}}
+.card.tint-lilac{background:var(--lilac);border-color:var(--lilac-line)}
+.edt-empty{margin-bottom:20px}
+.edt-empty p{margin:8px 0 0}
+.edt-weeklabel{font-family:var(--serif);font-style:italic;font-weight:400;font-size:22px;min-width:230px;text-align:center}
+.week-ab{display:inline-block;font-family:var(--sans);font-style:normal;font-size:12px;font-weight:800;padding:3px 10px;border-radius:999px;background:var(--btn);color:var(--btn-ink);vertical-align:4px;margin-left:6px}
+.edt-grid{display:grid;grid-template-columns:42px repeat(var(--n),minmax(0,1fr));gap:8px}
+.edt-colhead{height:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;text-align:center}
+.edt-colhead b{font-weight:800;font-size:15px}
+.edt-colhead span{font-size:12px;color:var(--text2);font-weight:600}
+.edt-col.today .edt-colhead b{color:var(--coral)}
+.edt-dayinfo{border:0;background:none;font-size:11.5px;font-weight:800;color:var(--text3);padding:2px 6px;border-radius:999px}
+.edt-dayinfo:hover{color:var(--accent)}
+.edt-dayinfo.has{background:#FDEBC8;color:#8A5A00}
+.edt-colbody{position:relative;background:var(--surface);border:1.5px solid var(--line);border-radius:var(--r-md);overflow:hidden;cursor:copy}
+.edt-col.today .edt-colbody{border-color:var(--peach-line);background:color-mix(in srgb,var(--peach) 55%,var(--surface))}
+.edt-hline{position:absolute;left:0;right:0;border-top:1px dashed var(--line)}
+.edt-hourbody{position:relative}
+.edt-hourbody span{position:absolute;right:4px;transform:translateY(-50%);font-size:11.5px;font-weight:700;color:var(--text3)}
+.edt-hourbody span:first-child{transform:none}
+.edt-block{position:absolute;left:4px;right:4px;border:0;border-radius:10px;padding:5px 8px;text-align:left;display:flex;flex-direction:column;gap:1px;overflow:hidden;cursor:pointer;
+  background:color-mix(in srgb,var(--c) 22%,var(--surface-strong));border-left:4px solid var(--c);color:var(--text);transition:transform .15s,box-shadow .2s}
+.edt-block:hover{transform:scale(1.02);box-shadow:var(--shadow);z-index:2}
+.edt-block b{font-size:13.5px;font-weight:800;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.edt-block span{font-size:11.5px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.edt-block.has-notes{box-shadow:inset 0 0 0 2px #E9B44C}
+.edt-block.cancel{background:repeating-linear-gradient(135deg,rgba(236,106,94,.12) 0 8px,transparent 8px 16px),var(--surface-strong);border-left-color:#EC6A5E}
+.edt-block.cancel b{text-decoration:line-through;text-decoration-color:#EC6A5E;text-decoration-thickness:2px}
+.edt-badges{position:absolute;top:4px;right:5px;display:flex;gap:2px}
+.edt-badges i{font-style:normal;font-size:13px}
+.edt-now{position:absolute;left:0;right:0;height:2px;background:var(--coral);z-index:3}
+.edt-now::before{content:"";position:absolute;left:-1px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--coral)}
+.edt-mobile{display:none}
+.edt-daytabs{display:flex;gap:6px;margin-bottom:14px}
+.edt-daytabs button{flex:1;border:1.5px solid var(--line);background:var(--surface-strong);border-radius:14px;padding:8px 2px;display:flex;flex-direction:column;align-items:center;gap:1px}
+.edt-daytabs b{font-size:13px}
+.edt-daytabs span{font-family:var(--serif);font-size:18px}
+.edt-daytabs button.today{border-color:var(--peach-line)}
+.edt-daytabs button.on{background:var(--btn);color:var(--btn-ink);border-color:var(--btn)}
+.edt-row{display:flex;gap:14px;align-items:flex-start;width:100%;text-align:left;padding:12px 14px;border-radius:var(--r-md);border:0;background:var(--row);border-left:4px solid var(--c)}
+.edt-row.cancel{background:repeating-linear-gradient(135deg,rgba(236,106,94,.10) 0 8px,transparent 8px 16px),var(--row)}
+.edt-row.cancel .edt-info>b{text-decoration:line-through;text-decoration-color:#EC6A5E;text-decoration-thickness:2px}
+.edt-time{font-family:var(--serif);font-size:18px;min-width:52px;line-height:1.05}
+.edt-time small{display:block;font-family:var(--sans);font-size:12px;color:var(--text2)}
+.edt-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.edt-note{font-size:13px;padding:5px 10px;border-radius:10px;background:#FFF3D6;color:#6B4A00;overflow-wrap:anywhere}
+.edt-note.t-absent,.edt-note.t-annule,.edt-note.t-greve{background:#FDE3DF;color:#9A2219}
+.edt-note.t-controle,.edt-note.t-devoir{background:#E3EEFD;color:#1E4F8F}
+.course-modal{width:min(560px,100%)}
+.course-head{border-radius:var(--r-lg);padding:16px 18px;background:color-mix(in srgb,var(--c) 18%,var(--surface-strong));border-left:6px solid var(--c)}
+.course-head h2{font-size:28px !important}
+.course-meta{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:8px;font-weight:600;font-size:14px;color:var(--text2)}
+.edt-note-row{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:12px;background:#FFF3D6;color:#4A3500}
+.edt-note-row.t-absent,.edt-note-row.t-annule,.edt-note-row.t-greve{background:#FDE3DF;color:#7A1B14}
+.edt-note-row.t-controle,.edt-note-row.t-devoir{background:#E3EEFD;color:#173F73}
+.edt-note-row .note-meta{color:inherit;opacity:.7}
+.edt-note-form{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;padding:12px;border-radius:var(--r-md);background:var(--field)}
+.edt-note-form select{flex:1 1 200px;background-color:var(--surface-strong)}
+.edt-note-form input{flex:2 1 220px;background:var(--surface-strong)}
+@media (max-width:760px){
+  .edt-grid{display:none}
+  .edt-mobile{display:block}
+  .edt-weeklabel{min-width:0;font-size:18px}
+  .view-head .cal-nav{flex-wrap:wrap}
+}

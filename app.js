@@ -63,6 +63,7 @@ const ICON = {
   cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg>',
   chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.6A8 8 0 1 1 21 12z"/></svg>',
   star: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>',
+  book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V5a2 2 0 0 1 2-2h13v16H6.5A2.5 2.5 0 0 0 4 21.5v-2"/><path d="M8 7h7M8 11h5"/></svg>',
   gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
   left: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>',
@@ -170,7 +171,7 @@ const save = (p) => Promise.resolve(p).catch((e) => { console.error(e); toast('E
 /* ================= État ================= */
 const state = {
   user: null, me: null, family: null,
-  members: [], events: [], messages: [], notes: [],
+  members: [], events: [], messages: [], notes: [], cours: [], edtNotes: [], edtConfig: {},
   view: 'accueil',
   month: (() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); })(),
   selected: todayStr(),
@@ -596,6 +597,7 @@ async function enter(user) {
   state.family = family;
   state.loadedMessages = false;
   state.membersLoaded = false;
+  state.edtNotesLoaded = false;
   state.autoLogin = ls.get('kc-ask') !== '1';
   backend.setFamily(family.id);
   renderWho();
@@ -604,6 +606,9 @@ async function enter(user) {
     backend.subscribe('events', (list) => { state.events = list; refresh(); checkAlerts(); }),
     backend.subscribe('notes', (list) => { state.notes = list; refresh(); }),
     backend.subscribe('messages', onMessages, { limit: 300 }),
+    backend.subscribe('cours', (list) => { state.cours = list; refresh(); }),
+    backend.subscribe('edtNotes', onEdtNotes),
+    backend.subscribe('edtConfig', (list) => { state.edtConfig = list.find((x) => x.id === 'main') || {}; refresh(); }),
   );
 }
 
@@ -644,13 +649,13 @@ function onMessages(list) {
 
 /* ================= Coquille (navigation) ================= */
 const NAV = [
-  ['accueil', 'Accueil', 'home'], ['agenda', 'Agenda', 'cal'], ['messages', 'Messages', 'chat'],
-  ['important', 'Pense-bête', 'star'], ['reglages', 'Réglages', 'gear'],
+  ['accueil', 'Accueil', 'home'], ['agenda', 'Agenda', 'cal'], ['edt', 'Emploi du temps', 'book', 'Lycée'],
+  ['messages', 'Messages', 'chat'], ['important', 'Pense-bête', 'star', 'Notes'], ['reglages', 'Réglages', 'gear'],
 ];
-function navButtons() {
+function navButtons(short = false) {
   const n = unreadCount();
-  return NAV.map(([id, label, icon]) => `<button class="nav-btn ${state.view === id ? 'active' : ''}" data-action="nav" data-view="${id}">
-    ${ICON[icon]}<span>${label}</span>${id === 'messages' && n ? `<span class="badge">${n}</span>` : ''}</button>`).join('');
+  return NAV.map(([id, label, icon, s]) => `<button class="nav-btn ${state.view === id ? 'active' : ''}" data-action="nav" data-view="${id}">
+    ${ICON[icon]}<span>${short && s ? s : label}</span>${id === 'messages' && n ? `<span class="badge">${n}</span>` : ''}</button>`).join('');
 }
 function renderShell() {
   $('#app').innerHTML = `<div class="shell">
@@ -670,7 +675,7 @@ function refresh() {
   const main = $('#main');
   if (!main || !state.me) return;
   $('#nav-side').innerHTML = navButtons();
-  $('#nav-tab').innerHTML = navButtons();
+  $('#nav-tab').innerHTML = navButtons(true);
   $('#fam-name').textContent = state.family.name;
   $('#fam-name-top').textContent = state.family.name;
   $('#me-btn').innerHTML = avatar(state.me);
@@ -728,6 +733,7 @@ const VIEWS = {
         <section class="card tint-mint"><div class="card-head"><h2>À venir</h2><button class="btn btn-sm" data-action="nav" data-view="agenda">Agenda</button></div>
           ${upcoming.map((d) => `<div class="day-group"><h3>${d === ymd(addDays(now, 1)) ? 'Demain' : esc(fmtLong(parseYmd(d)))}</h3>
             <div class="list">${map[d].map((ev) => evItem(ev)).join('')}</div></div>`).join('') || '<div class="empty">Rien dans les 2 prochaines semaines.</div>'}</section>
+        ${edtDashboardCard()}
         <section class="card tint-sky"><div class="card-head"><h2>Ma boîte de réception${unread ? ` <span class="badge" style="margin-left:6px">${unread}</span>` : ''}</h2><button class="btn btn-sm" data-action="nav" data-view="messages">Tout voir</button></div>
           <div class="list">${myMail.map((m) => mailItem(m, 'in', true)).join('') || '<div class="empty">Aucun message pour vous.</div>'}</div></section>
       </div>`;
@@ -792,6 +798,59 @@ const VIEWS = {
         <button class="btn btn-sm" data-action="toggle-done">${state.showDone ? 'Masquer' : 'Afficher'}</button>
         <button class="btn btn-sm btn-danger" data-action="clear-done">Tout effacer</button></span></div>
         ${state.showDone ? `<div class="list">${done.map(noteItem).join('')}</div>` : ''}` : ''}`;
+  },
+
+  edt() {
+    const cfg = edtCfg(), mon = state.edtWeek || mondayOf(new Date());
+    const nDays = cfg.saturday ? 6 : 5, days = Array.from({ length: nDays }, (_, i) => addDays(mon, i));
+    const wt = weekType(mon), student = state.members.find((m) => m.id === cfg.studentId);
+    let minH = 8, maxH = 17;
+    state.cours.forEach((c) => { minH = Math.min(minH, Math.floor(toMin(c.start) / 60)); maxH = Math.max(maxH, Math.ceil(toMin(c.end) / 60)); });
+    const PPM = 1.15, height = (maxH - minH) * 60 * PPM, t = todayStr(), now = new Date(), nowMin = now.getHours() * 60 + now.getMinutes();
+    const hourLines = Array.from({ length: maxH - minH + 1 }, (_, i) => `<div class="edt-hline" style="top:${i * 60 * PPM}px"></div>`).join('');
+    const cols = days.map((d, i) => {
+      const k = ymd(d), list = coursesOn(k), dayNotes = notesFor('', k);
+      return `<div class="edt-col ${k === t ? 'today' : ''}">
+        <div class="edt-colhead"><b>${EDT_DAYS[i]}</b><span>${d.getDate()} ${d.toLocaleDateString('fr-FR', { month: 'short' })}</span>
+          <button class="edt-dayinfo ${dayNotes.length ? 'has' : ''}" data-action="open-course" data-id="" data-date="${k}" title="Infos du jour">${dayNotes.length ? '📌 ' + dayNotes.length : '＋ info'}</button></div>
+        <div class="edt-colbody" style="height:${height}px" data-action="edt-slot" data-day="${i + 1}" data-minh="${minH}" data-ppm="${PPM}">
+          ${hourLines}
+          ${list.map((c) => {
+            const top = (toMin(c.start) - minH * 60) * PPM, h = Math.max(30, (toMin(c.end) - toMin(c.start)) * PPM - 3);
+            const ns = notesFor(c.id, k), cancel = ns.some((n) => EDT_TYPES[n.type]?.cancel);
+            return `<button class="edt-block ${cancel ? 'cancel' : ''} ${ns.length ? 'has-notes' : ''}" style="top:${top}px;height:${h}px;--c:${esc(c.color || '#4FB9E8')}" data-action="open-course" data-id="${esc(c.id)}" data-date="${k}">
+              <b>${esc(c.subject)}</b><span>${esc(c.start)}–${esc(c.end)}${c.room ? ' · ' + esc(c.room) : ''}</span>${c.teacher && h > 62 ? `<span>${esc(c.teacher)}</span>` : ''}
+              ${ns.length ? `<span class="edt-badges">${ns.map((n) => `<i title="${esc(EDT_TYPES[n.type]?.label || '')}">${(EDT_TYPES[n.type]?.label || '💬').split(' ')[0]}</i>`).join('')}</span>` : ''}</button>`;
+          }).join('')}
+          ${k === t && nowMin >= minH * 60 && nowMin <= maxH * 60 ? `<div class="edt-now" style="top:${(nowMin - minH * 60) * PPM}px"></div>` : ''}
+        </div></div>`;
+    }).join('');
+    const sel = Math.min(state.edtDay ?? Math.max(0, Math.min(nDays - 1, (new Date().getDay() + 6) % 7)), nDays - 1);
+    const selDate = ymd(days[sel]), selNotes = notesFor('', selDate), selList = coursesOn(selDate);
+    const end = days[nDays - 1];
+    return `<div class="view-head"><div><div class="eyebrow">Emploi du temps${student ? ' de ' + esc(student.name) : ''}</div><h1>${esc(cfg.title)}</h1></div>
+        <div class="cal-nav"><button class="btn btn-icon" data-action="edt-week" data-delta="-1" aria-label="Semaine précédente">${ICON.left}</button>
+          <h2 class="edt-weeklabel">Du ${mon.getDate()} au ${end.getDate()} ${end.toLocaleDateString('fr-FR', { month: 'long' })}${wt ? ` <span class="week-ab">Semaine ${wt}</span>` : ''}</h2>
+          <button class="btn btn-icon" data-action="edt-week" data-delta="1" aria-label="Semaine suivante">${ICON.right}</button>
+          <button class="btn btn-sm" data-action="edt-week" data-delta="0">Cette semaine</button></div>
+        <div class="quick"><button class="btn btn-sm" data-action="edt-settings">⚙️ Réglages</button>
+          <button class="btn btn-primary" data-action="edit-course" data-id="">${ICON.plus} Cours</button></div></div>
+      ${state.cours.length ? '' : `<div class="card tint-lilac edt-empty"><h2>Créons l’emploi du temps 📚</h2><p class="muted">Ajoutez chaque cours une fois (matière, prof, salle, jour, horaires) : il se répète toutes les semaines.
+        Ensuite, n’importe qui peut noter un changement pour un jour précis (prof absent, salle changée, contrôle…). Tout le monde le voit en direct.</p>
+        <p class="muted small">Astuce : sur ordinateur, cliquez directement dans la grille à l’heure voulue pour ajouter un cours.</p></div>`}
+      <div class="edt-grid" style="--n:${nDays}">
+        <div class="edt-hours"><div class="edt-colhead"></div><div class="edt-hourbody" style="height:${height}px">${Array.from({ length: maxH - minH + 1 }, (_, i) => `<span style="top:${i * 60 * PPM}px">${minH + i}h</span>`).join('')}</div></div>
+        ${cols}
+      </div>
+      <div class="edt-mobile">
+        <div class="edt-daytabs">${days.map((d, i) => `<button class="${i === sel ? 'on' : ''} ${ymd(d) === t ? 'today' : ''}" data-action="edt-day" data-i="${i}"><b>${EDT_DAYS[i].slice(0, 3)}</b><span>${d.getDate()}</span></button>`).join('')}</div>
+        <div class="list">
+          ${selNotes.map((n) => edtNoteLine(n)).join('')}
+          ${selList.map((c) => courseRow(c, selDate)).join('') || '<div class="empty">Pas de cours ce jour-là.</div>'}
+          <div class="quick"><button class="btn btn-sm" data-action="open-course" data-id="" data-date="${selDate}">📌 Info du jour</button>
+            <button class="btn btn-sm" data-action="edit-course" data-id="" data-day="${sel + 1}">${ICON.plus} Cours ce jour</button></div>
+        </div>
+      </div>`;
   },
 
   reglages() {
@@ -892,6 +951,156 @@ function submitCompose(form) {
   save(backend.add('messages', { from: state.me.id, to: all ? null : to, subject, text, ts: Date.now(), readBy: [state.me.id] }));
   closeModal();
   toast('Message envoyé ✉️');
+}
+
+/* ================= Emploi du temps du lycée ================= */
+// Les cours se répètent chaque semaine (ou semaine A / B). Les « infos » sont datées :
+// prof absent, cours annulé, salle changée, contrôle… Tout est partagé en direct.
+const EDT_TYPES = {
+  absent: { label: '🚫 Prof absent', cancel: true }, annule: { label: '❌ Cours annulé', cancel: true },
+  salle: { label: '🚪 Changement de salle' }, horaire: { label: '🕐 Changement d’horaire' },
+  controle: { label: '📝 Contrôle / évaluation' }, devoir: { label: '📚 Devoir à rendre' },
+  sortie: { label: '🚌 Sortie / voyage scolaire' }, greve: { label: '✊ Grève / pas de cours', cancel: true },
+  note: { label: '💬 Remarque' },
+};
+const SUBJECTS = ['Français', 'Mathématiques', 'Histoire-Géographie', 'Anglais', 'Espagnol', 'Allemand', 'Italien', 'Physique-Chimie', 'SVT',
+  'SES', 'Philosophie', 'EPS', 'EMC', 'SNT', 'Enseignement scientifique', 'Spécialité', 'Option', 'Vie de classe', 'Accompagnement personnalisé'];
+const SUBJECT_COLORS = ['#F2896B', '#4FB9E8', '#3FB0A4', '#9B7BE0', '#F3B64C', '#E86A9A', '#6CC070', '#5C7CE0', '#C98B5A', '#1FA3A3'];
+const EDT_DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+const edtCfg = () => ({ title: 'Lycée Max Linder', studentId: '', saturday: false, refA: '', ...state.edtConfig });
+const mondayOf = (d) => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
+const toMin = (t) => { const [h, m] = String(t || '0:0').split(':').map(Number); return h * 60 + (m || 0); };
+function weekType(monday) {
+  const ref = edtCfg().refA;
+  if (!ref) return null;
+  const w = Math.round((monday - parseYmd(ref)) / (7 * 864e5));
+  return ((w % 2) + 2) % 2 === 0 ? 'A' : 'B';
+}
+function coursesOn(date) {
+  const d = parseYmd(date), dow = ((d.getDay() + 6) % 7) + 1, wt = weekType(mondayOf(d));
+  return state.cours.filter((c) => Number(c.day) === dow && (!c.weeks || c.weeks === 'all' || !wt || c.weeks === wt))
+    .sort((a, b) => toMin(a.start) - toMin(b.start));
+}
+const notesFor = (courseId, date) => state.edtNotes.filter((n) => (n.courseId || '') === courseId && n.date === date).sort((a, b) => a.ts - b.ts);
+const fmtShort = (date) => parseYmd(date).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+
+function edtNoteLine(n) {
+  return `<div class="edt-note t-${esc(n.type)}"><b>${esc(EDT_TYPES[n.type]?.label || '💬 Remarque')}</b>${n.text ? ' : ' + esc(n.text) : ''}</div>`;
+}
+function courseRow(c, date) {
+  const ns = notesFor(c.id, date), cancel = ns.some((n) => EDT_TYPES[n.type]?.cancel);
+  return `<button class="edt-row ${cancel ? 'cancel' : ''}" style="--c:${esc(c.color || '#4FB9E8')}" data-action="open-course" data-id="${esc(c.id)}" data-date="${date}">
+    <span class="edt-time">${esc(c.start)}<small>${esc(c.end)}</small></span>
+    <span class="edt-info"><b>${esc(c.subject)}</b><span class="muted small">${[c.room && 'Salle ' + c.room, c.teacher].filter(Boolean).map(esc).join(' · ')}</span>
+      ${ns.map(edtNoteLine).join('')}</span></button>`;
+}
+function edtDashboardCard() {
+  if (!state.cours.length) return '';
+  const cfg = edtCfg(), student = state.members.find((m) => m.id === cfg.studentId);
+  let d = new Date(), list = [], date;
+  for (let i = 0; i < 8 && !list.length; i++, d = addDays(d, 1)) { date = ymd(d); list = coursesOn(date); }
+  if (!list.length) return '';
+  const label = date === todayStr() ? 'Aujourd’hui' : date === ymd(addDays(new Date(), 1)) ? 'Demain' : cap(parseYmd(date).toLocaleDateString('fr-FR', { weekday: 'long' }));
+  const dayNotes = notesFor('', date);
+  return `<section class="card tint-lilac"><div class="card-head"><h2>📚 ${label} au lycée${student ? ` <span class="muted small" style="font-weight:700">· ${esc(student.name)}</span>` : ''}</h2>
+      <button class="btn btn-sm" data-action="nav" data-view="edt">Emploi du temps</button></div>
+    <div class="list">${dayNotes.map(edtNoteLine).join('')}${list.map((c) => courseRow(c, date)).join('')}</div></section>`;
+}
+
+function onEdtNotes(list) {
+  const prev = new Set(state.edtNotes.map((n) => n.id));
+  const fresh = state.edtNotesLoaded ? list.filter((n) => !prev.has(n.id) && n.author !== state.me?.id) : [];
+  state.edtNotes = list;
+  state.edtNotesLoaded = true;
+  for (const n of fresh) {
+    const c = state.cours.find((x) => x.id === n.courseId);
+    toast(`📚 ${member(n.author).name} : ${c ? c.subject : 'Info'} (${fmtShort(n.date)}) — ${EDT_TYPES[n.type]?.label || ''}`);
+  }
+  const open = $('.course-modal');
+  if (open) openCourse(open.dataset.id, open.dataset.date, true);
+  refresh();
+}
+
+// Fiche d'un cours pour un jour donné (ou infos générales du jour si id vide) + annotations.
+function openCourse(id, date, keepInput = false) {
+  const c = state.cours.find((x) => x.id === id);
+  const typed = keepInput ? $('#edt-note-form')?.text.value || '' : '';
+  const ns = notesFor(c ? c.id : '', date);
+  const d = parseYmd(date);
+  $('#modal-root').innerHTML = `<div class="modal-backdrop" data-action="close-modal"><div class="modal course-modal" data-id="${esc(c?.id || '')}" data-date="${date}">
+    <div class="course-head" style="--c:${esc(c?.color || '#9B7BE0')}">
+      <div class="eyebrow">${esc(fmtLong(d))}${c?.weeks && c.weeks !== 'all' ? ' · Semaine ' + esc(c.weeks) : ''}</div>
+      <h2>${c ? esc(c.subject) : '📌 Infos du jour'}</h2>
+      ${c ? `<div class="course-meta"><span>🕐 ${esc(c.start)} – ${esc(c.end)}</span>${c.room ? `<span>🚪 Salle ${esc(c.room)}</span>` : ''}${c.teacher ? `<span>👤 ${esc(c.teacher)}</span>` : ''}</div>`
+        : '<div class="course-meta"><span>Sortie, grève, journée banalisée… visible par toute la famille.</span></div>'}
+    </div>
+    <div class="section-title" style="margin-top:18px"><span>Changements et annotations pour ce jour</span></div>
+    <div class="list">${ns.map((n) => `<div class="edt-note-row t-${esc(n.type)}"><div style="flex:1"><b>${esc(EDT_TYPES[n.type]?.label || '💬 Remarque')}</b>${n.text ? `<div>${esc(n.text)}</div>` : ''}
+        <div class="note-meta">${esc(member(n.author).name)} · ${fmtWhen(n.ts)}</div></div>
+        <button class="del" data-action="del-edt-note" data-id="${esc(n.id)}" aria-label="Supprimer">${ICON.trash}</button></div>`).join('')
+      || '<div class="empty">Rien de particulier pour l’instant.</div>'}</div>
+    <form id="edt-note-form" class="edt-note-form">
+      <select name="type">${Object.entries(EDT_TYPES).filter(([k]) => c || !['absent', 'salle', 'horaire'].includes(k))
+        .map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('')}</select>
+      <input type="text" name="text" maxlength="200" value="${esc(typed)}" placeholder="Précision (facultatif) : salle B204, chapitre 3…">
+      <button class="btn btn-primary btn-sm">${ICON.plus} Ajouter</button>
+    </form>
+    <div class="modal-actions">${c ? `<button class="btn" data-action="edit-course" data-id="${esc(c.id)}">✏️ Modifier le cours</button>` : ''}<span class="grow"></span>
+      <button class="btn btn-primary" data-action="close-modal-btn">Fermer</button></div>
+  </div></div>`;
+}
+
+function openCourseEdit(c, { day = 1, start = '08:00' } = {}) {
+  const isNew = !c;
+  const used = new Set(state.cours.map((x) => x.color));
+  c = c || { subject: '', teacher: '', room: '', day, start, end: `${pad(Math.min(23, Math.floor(toMin(start) / 60) + 1))}:${start.split(':')[1]}`, weeks: 'all',
+    color: SUBJECT_COLORS.find((x) => !used.has(x)) || SUBJECT_COLORS[0] };
+  const cfg = edtCfg();
+  $('#modal-root').innerHTML = `<div class="modal-backdrop" data-action="close-modal"><form class="modal" id="course-form" data-id="${esc(c.id || '')}" data-color="${esc(c.color)}">
+    <h2 style="margin-bottom:16px">${isNew ? 'Ajouter un cours' : 'Modifier le cours'}</h2>
+    <label class="field"><span>Matière</span><input type="text" name="subject" list="subjects" value="${esc(c.subject)}" maxlength="60" required placeholder="Ex. Mathématiques">
+      <datalist id="subjects">${SUBJECTS.map((x) => `<option value="${x}">`).join('')}</datalist></label>
+    <div class="row"><label class="field"><span>Professeur</span><input type="text" name="teacher" value="${esc(c.teacher)}" maxlength="60" placeholder="Ex. Mme Dupont"></label>
+      <label class="field"><span>Salle</span><input type="text" name="room" value="${esc(c.room)}" maxlength="20" placeholder="Ex. B204"></label></div>
+    <div class="row"><label class="field"><span>Jour</span><select name="day">${EDT_DAYS.slice(0, cfg.saturday ? 6 : 5).map((d, i) => `<option value="${i + 1}" ${Number(c.day) === i + 1 ? 'selected' : ''}>${d}</option>`).join('')}</select></label>
+      <label class="field"><span>Début</span><input type="time" name="start" value="${esc(c.start)}" required></label>
+      <label class="field"><span>Fin</span><input type="time" name="end" value="${esc(c.end)}" required></label></div>
+    <label class="field"><span>Quelles semaines ?</span><select name="weeks">
+      ${[['all', 'Toutes les semaines'], ['A', 'Semaine A seulement'], ['B', 'Semaine B seulement']].map(([v, l]) => `<option value="${v}" ${(c.weeks || 'all') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+    <div class="field"><span>Couleur</span><div class="colors">${SUBJECT_COLORS.map((x) => `<button type="button" class="color-dot ${x === c.color ? 'on' : ''}" style="--c:${x}" data-action="pick-color" data-color="${x}" aria-label="Couleur"></button>`).join('')}</div></div>
+    <div class="error"></div>
+    <div class="modal-actions">${isNew ? '' : `<button type="button" class="btn btn-danger" data-action="delete-course">${ICON.trash} Supprimer</button>`}<span class="grow"></span>
+      <button type="button" class="btn" data-action="close-modal-btn">Annuler</button><button class="btn btn-primary">Enregistrer</button></div>
+  </form></div>`;
+  setTimeout(() => $('#course-form [name=subject]')?.focus(), 50);
+}
+function submitCourse(form) {
+  const fd = new FormData(form), err = form.querySelector('.error');
+  const data = { subject: fd.get('subject').trim(), teacher: fd.get('teacher').trim(), room: fd.get('room').trim(), day: Number(fd.get('day')),
+    start: fd.get('start'), end: fd.get('end'), weeks: fd.get('weeks'), color: form.dataset.color };
+  if (!data.subject) return;
+  if (toMin(data.end) <= toMin(data.start)) { err.textContent = 'L’heure de fin doit être après l’heure de début.'; return; }
+  const id = form.dataset.id;
+  if (id) save(backend.update('cours', id, { ...data, editedBy: state.me.id }));
+  else save(backend.add('cours', { ...data, author: state.me.id, ts: Date.now() }));
+  closeModal();
+  toast(id ? 'Cours modifié — visible par toute la famille' : 'Cours ajouté — il se répète chaque semaine');
+}
+
+function openEdtSettings() {
+  const cfg = edtCfg(), wt = weekType(mondayOf(new Date()));
+  $('#modal-root').innerHTML = `<div class="modal-backdrop" data-action="close-modal"><form class="modal" id="edt-settings-form">
+    <h2 style="margin-bottom:16px">Réglages de l’emploi du temps</h2>
+    <label class="field"><span>Nom de l’établissement / titre</span><input type="text" name="title" value="${esc(cfg.title)}" maxlength="60" required></label>
+    <label class="field"><span>Emploi du temps de</span><select name="studentId"><option value="">—</option>
+      ${state.members.filter((m) => !isMaison(m)).map((m) => `<option value="${esc(m.id)}" ${cfg.studentId === m.id ? 'selected' : ''}>${esc(fullName(m))}</option>`).join('')}</select></label>
+    <label class="field"><span>Semaines A / B</span><select name="ab">
+      <option value="" ${!wt ? 'selected' : ''}>Pas de semaines A / B</option>
+      <option value="A" ${wt === 'A' ? 'selected' : ''}>Cette semaine est une semaine A</option>
+      <option value="B" ${wt === 'B' ? 'selected' : ''}>Cette semaine est une semaine B</option></select></label>
+    <label class="check-line"><input type="checkbox" name="saturday" ${cfg.saturday ? 'checked' : ''}> Cours le samedi</label>
+    <div class="modal-actions"><span class="grow"></span><button type="button" class="btn" data-action="close-modal-btn">Annuler</button><button class="btn btn-primary">Enregistrer</button></div>
+  </form></div>`;
 }
 
 function noteItem(n) {
@@ -1077,6 +1286,34 @@ const ACTIONS = {
     if (!confirm(`Supprimer « ${ev?.title} »${ev?.repeat !== 'none' ? ' (toutes les répétitions)' : ''} ?`)) return;
     save(backend.remove('events', id)); closeModal(); toast('Rendez-vous supprimé');
   },
+  'edt-week'(el) {
+    const n = Number(el.dataset.delta);
+    state.edtWeek = n === 0 ? mondayOf(new Date()) : addDays(state.edtWeek || mondayOf(new Date()), 7 * n);
+    if (n === 0) state.edtDay = undefined;
+    refresh();
+  },
+  'edt-day'(el) { state.edtDay = Number(el.dataset.i); refresh(); },
+  'edt-settings': () => openEdtSettings(),
+  'open-course'(el) { openCourse(el.dataset.id, el.dataset.date); },
+  'edit-course'(el) {
+    const c = state.cours.find((x) => x.id === el.dataset.id);
+    openCourseEdit(c, { day: Number(el.dataset.day) || 1 });
+  },
+  'edt-slot'(el, e) {
+    if (e.target !== el && !e.target.classList.contains('edt-hline')) return;
+    const r = el.getBoundingClientRect();
+    const min = Number(el.dataset.minh) * 60 + (e.clientY - r.top) / Number(el.dataset.ppm);
+    const m5 = Math.max(0, Math.round(min / 15) * 15);
+    openCourseEdit(null, { day: Number(el.dataset.day), start: `${pad(Math.floor(m5 / 60))}:${pad(m5 % 60)}` });
+  },
+  'delete-course'() {
+    const id = $('#course-form').dataset.id, c = state.cours.find((x) => x.id === id);
+    if (!c || !confirm(`Supprimer le cours « ${c.subject} » du ${EDT_DAYS[c.day - 1].toLowerCase()} ?`)) return;
+    save(backend.remove('cours', id));
+    state.edtNotes.filter((n) => n.courseId === id).forEach((n) => save(backend.remove('edtNotes', n.id)));
+    closeModal(); toast('Cours supprimé');
+  },
+  'del-edt-note'(el) { save(backend.remove('edtNotes', el.dataset.id)); },
   'select-day'(el) {
     state.selected = el.dataset.date;
     const d = parseYmd(el.dataset.date);
@@ -1151,6 +1388,18 @@ document.addEventListener('submit', async (e) => {
   } else if (f.id === 'setup-form') submitSetup(f);
   else if (f.id === 'event-form') submitEvent(f);
   else if (f.id === 'compose-form') submitCompose(f);
+  else if (f.id === 'course-form') submitCourse(f);
+  else if (f.id === 'edt-note-form') {
+    const box = $('.course-modal'), text = f.text.value.trim();
+    f.text.value = '';
+    save(backend.add('edtNotes', { courseId: box.dataset.id, date: box.dataset.date, type: f.type.value, text, author: state.me.id, ts: Date.now() }));
+    toast('Info ajoutée — toute la famille la voit');
+  } else if (f.id === 'edt-settings-form') {
+    const ab = f.ab.value, mon = mondayOf(new Date());
+    save(backend.set('edtConfig', 'main', { title: f.title.value.trim() || 'Lycée Max Linder', studentId: f.studentId.value, saturday: f.saturday.checked,
+      refA: ab === 'A' ? ymd(mon) : ab === 'B' ? ymd(addDays(mon, -7)) : '' }));
+    closeModal(); toast('Emploi du temps mis à jour');
+  }
   else if (f.id === 'note-form') {
     const input = $('#note-input'), text = input.value.trim();
     if (!text) return;
