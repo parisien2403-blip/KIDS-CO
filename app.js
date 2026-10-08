@@ -228,7 +228,7 @@ function onPresence(list) {
   }
   onlineBefore = now;
   if (state.me) refresh();
-  else if (state.membersLoaded && !$('#modal-root').innerHTML && $('.who-screen')) renderWho();
+  else if (state.membersLoaded && !$('#modal-root').innerHTML && $('#welcome-form[data-linked="1"]')) renderWho();
 }
 setInterval(() => { if (!document.hidden) beat(); }, 90000);
 addEventListener('pagehide', () => beat(false));
@@ -372,6 +372,7 @@ function renderLogin(mode = 'login', error = '') {
     <label class="field"><span>Mot de passe</span><input type="password" name="password" minlength="6" autocomplete="${mode === 'login' ? 'current-password' : 'new-password'}" required></label>
     <div class="error">${esc(error)}</div>
     <button class="btn btn-primary" style="width:100%">${mode === 'login' ? 'Se connecter' : 'Créer mon compte'}</button>
+    ${backend.mode === 'cloud' ? '<button type="button" class="link" data-action="welcome-back">← Retour à l’accueil (prénom + code)</button><br>' : ''}
     ${mode === 'login' ? '<button type="button" class="link" data-action="reset-password">Mot de passe oublié ?</button>' : '<p class="muted small">Chaque membre de la famille crée son compte. Pour la tablette de la cuisine, vous pouvez créer un compte « Maison ».</p>'}
   </form></div>`;
   $('#login-form').dataset.mode = mode;
@@ -426,6 +427,40 @@ async function hashPin(pin, memberId) {
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+/* ================= Page d'accueil : prénom + code secret ================= */
+// À l'ouverture : chacun tape son prénom et son code secret (ou touche sa photo).
+// Sur un nouveau téléphone / PC, on ajoute une fois le code famille (affiché dans Réglages).
+function welcomeHtml({ linked, people = [], remember = true }) {
+  const cloud = backend.mode === 'cloud';
+  return `<div class="auth welcome-screen"><div class="card welcome-card">
+    <div class="welcome-head"><img src="logo.png" alt="">
+      <div class="eyebrow">${linked ? esc(state.family.name) : 'Famille &amp; partage'}</div>
+      <h1>Bienvenue sur Kids&nbsp;&amp;&nbsp;Co</h1>
+      <p class="muted">${linked ? 'Entrez votre prénom et votre code secret.' : 'Pour connecter ce téléphone ou ce PC à votre famille : code famille, prénom et code secret.'}</p></div>
+    <form id="welcome-form" data-linked="${linked ? 1 : ''}" autocomplete="off">
+      ${linked ? '' : `<label class="field"><span>Code famille</span><input type="text" id="w-family" name="family" maxlength="8" autocapitalize="characters" spellcheck="false" placeholder="ABCD2345" class="code-input">
+        <small class="muted">Il s’affiche dans Réglages → La famille, sur un appareil déjà connecté.</small></label>`}
+      <label class="field"><span>Prénom</span><input type="text" id="w-name" name="firstname" maxlength="40" placeholder="Ex. Julie" autocomplete="given-name"></label>
+      <label class="field"><span>Code secret</span><input type="password" id="w-code" name="pin" inputmode="numeric" maxlength="4" placeholder="••••" class="pin-input" autocomplete="current-password"></label>
+      <label class="check-line"><input type="checkbox" id="w-remember" ${remember ? 'checked' : ''}> Rester connecté sur cet appareil</label>
+      <div class="error" id="w-error"></div>
+      <button class="btn btn-primary btn-lg" style="width:100%">Se connecter</button>
+      <div class="or"><span>ou</span></div>
+      <button type="button" class="btn btn-maison" data-action="login-maison"><span>🏠 Connexion Maison</span><small>la tablette de la cuisine</small></button>
+    </form>
+    ${people.length ? `<div class="quick-faces"><div class="small muted">Ou touchez votre photo :</div><div class="faces">
+      ${people.map((m) => `<button class="face ${presenceOf(m.id).online ? 'online' : ''}" style="--c:${esc(m.color)}" data-action="pick-face" data-id="${esc(m.id)}" title="${esc(presenceText(presenceOf(m.id)))}">
+        <span class="profile-avatar${hasPhoto(m) ? ` photo ph-${cssId(m.id)}` : ''}">${faceText(m)}</span><span>${esc(m.name)}</span></button>`).join('')}</div></div>` : ''}
+    <div class="welcome-links">
+      ${linked ? '<button class="link" data-action="add-member-start">＋ Nouveau membre</button>' : ''}
+      ${cloud ? (linked ? '<button class="link" data-action="logout">Déconnecter cet appareil</button>'
+        : '<button class="link" data-action="email-login">Se connecter avec l’e-mail de la famille</button><button class="link" data-action="email-signup">Nouvelle famille ? Créer notre compte</button>')
+        : '<span class="small muted">Mode démo : les données restent sur cet appareil</span>'}
+    </div>
+    <div class="welcome-version">Version ${APP_VERSION}</div>
+  </div></div>`;
+}
+
 function renderWho() {
   state.me = null;
   closeModal();
@@ -433,21 +468,96 @@ function renderWho() {
     $('#app').innerHTML = '<div class="splash"><img src="logo.png" alt="" width="96" height="96"><p class="wordmark">Kids &amp; Co</p></div>';
     return;
   }
-  if (!state.members.length) return renderFirstProfile();
-  $('#app').innerHTML = `<div class="auth who-screen"><div class="who-wrap">
-    <img class="who-logo" src="logo.png" alt="">
-    <div class="eyebrow">${esc(state.family.name)}</div>
-    <h1>Qui est là ?</h1>
-    <div class="profiles">
-      ${state.members.map((m) => `<button class="profile ${presenceOf(m.id).online ? 'online' : ''}" style="--c:${esc(m.color)}" data-action="pick-profile" data-id="${esc(m.id)}" title="${esc(presenceText(presenceOf(m.id)))}">
-        <span class="profile-avatar${hasPhoto(m) ? ` photo ph-${cssId(m.id)}` : ''}">${faceText(m)}</span>
-        <span class="profile-name">${esc(m.name)}</span>
-        <span class="profile-tag">${m.pinHash ? '🔒 ' : ''}${roleLabel(m)}</span></button>`).join('')}
-      <button class="profile add" data-action="add-member-start"><span class="profile-avatar">${ICON.plus}</span><span class="profile-name">Ajouter</span><span class="profile-tag">Nouveau membre</span></button>
-    </div>
-    ${backend.mode === 'cloud' ? '<button class="link" data-action="logout">Déconnecter cet appareil</button>'
-      : '<p class="demo-banner" style="display:inline-block">Mode démo : les profils restent sur cet appareil.</p>'}
-  </div></div>`;
+  const people = state.members.filter((m) => !isMaison(m));
+  if (!people.length) return renderFirstProfile();
+  // On garde ce qui est en train d'être tapé (l'écran se redessine quand quelqu'un se connecte ailleurs).
+  const keep = { name: $('#w-name')?.value || '', pin: $('#w-code')?.value || '', err: $('#w-error')?.textContent || '', focus: document.activeElement?.id };
+  $('#app').innerHTML = welcomeHtml({ linked: true, people, remember: ls.get('kc-ask') !== '1' });
+  $('#w-name').value = keep.name; $('#w-code').value = keep.pin; $('#w-error').textContent = keep.err;
+  if (keep.focus && document.getElementById(keep.focus)) document.getElementById(keep.focus).focus();
+}
+function renderWelcomeUnlinked() {
+  state.me = null;
+  $('#app').innerHTML = welcomeHtml({ linked: false });
+}
+
+const norm = (x) => String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
+let loginTries = 0, loginLockUntil = 0;
+async function createMaison() {
+  const id = 'm' + newCode().toLowerCase();
+  const data = { name: 'Maison', lastName: '', role: 'maison', color: '#3FB0A4', emoji: '', createdAt: Date.now() };
+  save(backend.set('membres', id, data));
+  const m = { id, ...data };
+  if (!state.members.some((x) => x.id === id)) state.members.push(m);
+  return m;
+}
+// Renvoie un message d'erreur, ou null si la connexion a réussi.
+async function tryLogin({ name, pin, maison, remember }) {
+  if (Date.now() < loginLockUntil) return 'Trop d’essais : patientez 30 secondes.';
+  let cands;
+  if (maison) cands = [state.members.find(isMaison) || (await createMaison())];
+  else {
+    const n = norm(name);
+    if (!n) return 'Entrez votre prénom.';
+    cands = state.members.filter((m) => !isMaison(m) && (norm(m.name) === n || norm(fullName(m)) === n));
+    if (!cands.length) return `Personne ne s’appelle « ${name.trim()} » dans la famille. Vérifiez l’orthographe, ou demandez à un parent de créer votre compte.`;
+  }
+  for (const m of cands) {
+    if (!m.pinHash) return loginOk(m, remember);
+    if (pin && (await hashPin(pin, m.id)) === m.pinHash) return loginOk(m, remember);
+  }
+  if (!pin) return maison ? 'Entrez le code secret de la Maison.' : 'Entrez votre code secret.';
+  if (++loginTries >= 5) { loginTries = 0; loginLockUntil = Date.now() + 30000; return 'Code incorrect. Trop d’essais : patientez 30 secondes.'; }
+  return 'Code secret incorrect, réessayez.';
+}
+function loginOk(m, remember) {
+  loginTries = 0;
+  ls.set('kc-ask', remember ? '0' : '1');
+  startAs(m);
+  return null;
+}
+function welcomeError(msg) {
+  const el = $('#w-error');
+  if (!el) return toast(msg, true);
+  el.textContent = msg;
+  const card = $('.welcome-card');
+  card.classList.remove('shake'); void card.offsetWidth; card.classList.add('shake');
+  if ($('#w-code')) $('#w-code').value = '';
+}
+async function submitWelcome(maison = false) {
+  const f = $('#welcome-form'); if (!f) return;
+  const data = { name: $('#w-name').value, pin: $('#w-code').value.trim(), remember: $('#w-remember').checked, maison };
+  if (data.pin && !/^\d{4}$/.test(data.pin)) return welcomeError('Le code secret fait 4 chiffres.');
+  $('#w-error').textContent = '';
+  f.querySelectorAll('button').forEach((b) => (b.disabled = true));
+  const e = f.dataset.linked ? await tryLogin(data) : await linkDevice($('#w-family').value, data);
+  if ($('#welcome-form')) f.querySelectorAll('button').forEach((b) => (b.disabled = false));
+  if (e) welcomeError(e);
+}
+// Nouvel appareil : on lui crée un accès invisible, puis il rejoint la famille grâce au code famille.
+async function linkDevice(code, data) {
+  code = String(code || '').trim().toUpperCase();
+  if (code.length !== 8) return 'Le code famille fait 8 caractères (lettres et chiffres).';
+  if (!data.maison && !norm(data.name)) return 'Entrez votre prénom.';
+  state.joining = true;
+  try {
+    let user = state.user;
+    if (!user) {
+      const cred = await backend.signUp(`appareil-${newCode().toLowerCase()}${newCode().toLowerCase()}@kids-and-co.app`, newCode() + newCode() + newCode());
+      user = { uid: cred.user.uid, email: cred.user.email };
+      state.user = user;
+    }
+    try { await backend.joinFamily(user.uid, code); }
+    catch { throw new Error('Code famille introuvable. Vérifiez-le dans Réglages → La famille, sur un appareil déjà connecté.'); }
+    await backend.saveProfile(user.uid, { familyId: code });
+  } catch (e) {
+    state.joining = false;
+    return AUTH_ERRORS[e.code] || e.message;
+  }
+  state.joining = false;
+  state.pendingLogin = data;
+  await enter(state.user);
+  return null;
 }
 
 function renderFirstProfile() {
@@ -607,7 +717,10 @@ async function submitMember(form) {
   const saved = { id, ...old, ...data };
   closeModal();
   if (state.me?.id === id) { state.me = saved; refresh(); }
-  if (first) return openCard(saved, { welcome: true, onDone: () => startAs(saved) });
+  if (first) {
+    if (!state.members.some(isMaison)) createMaison(); // le compte Maison existe toujours
+    return openCard(saved, { welcome: true, onDone: () => startAs(saved) });
+  }
   if (isNew) return openCard(saved, { welcome: true });
   toast('Compte mis à jour');
 }
@@ -651,10 +764,11 @@ let cardDone = null;
 
 /* ================= Démarrage ================= */
 async function enter(user) {
+  if (state.joining) { state.user = user; return; } // connexion d'un nouvel appareil en cours
   stopSubs();
   state.user = user;
   state.me = null;
-  if (!user) return renderLogin();
+  if (!user) return backend.mode === 'cloud' ? renderWelcomeUnlinked() : renderLogin();
   let family;
   try {
     const profile = backend.mode === 'demo' ? { familyId: 'DEMO' } : await backend.getProfile(user.uid);
@@ -666,7 +780,7 @@ async function enter(user) {
       <button class="btn btn-primary" data-action="reload">Réessayer</button> <button class="btn" data-action="logout">Se déconnecter</button></div></div>`;
     return;
   }
-  if (!family) return renderFamilySetup();
+  if (!family) return /^appareil-/.test(user.email || '') ? renderWelcomeUnlinked() : renderFamilySetup();
 
   state.family = family;
   state.loadedMessages = false;
@@ -700,6 +814,13 @@ function onMembers(list) {
     if (!m) { toast('Ce profil a été retiré de la famille.', true); return switchUser(); }
     state.me = m;
     return refresh();
+  }
+  if (firstLoad && state.pendingLogin) {
+    const d = state.pendingLogin;
+    state.pendingLogin = null;
+    renderWho();
+    tryLogin(d).then((e) => e && welcomeError(e));
+    return;
   }
   if (firstLoad && state.autoLogin) {
     const m = state.members.find((x) => x.id === ls.get(profileKey()));
@@ -968,7 +1089,7 @@ const VIEWS = {
             ${state.members.some(isMaison) ? '' : `<button class="btn btn-sm" data-action="add-maison">🏠 Créer le compte Maison</button>`}</div>` : ''}
           <form id="family-form" style="margin-top:18px"><label class="field"><span>Nom de la famille</span>
             <input type="text" id="f-name" value="${esc(state.family.name)}" maxlength="40" ${isParent(state.me) ? '' : 'disabled'}></label></form>
-          ${backend.mode === 'cloud' ? `<p class="muted small" style="margin:4px 0 0">Code pour connecter un nouvel appareil (téléphone, tablette, PC) à la famille :</p>
+          ${backend.mode === 'cloud' ? `<p class="muted small" style="margin:4px 0 0"><b>Code famille</b> — pour connecter un autre téléphone ou PC : sur la page d’accueil, entrez ce code, votre prénom et votre code secret.</p>
             <div class="invite">${esc(state.family.id)}</div>
             <button class="btn btn-sm" data-action="share-code">Partager le code</button>` : ''}
         </section>
@@ -1393,6 +1514,18 @@ const ACTIONS = {
     stopSubs(); await backend.signOut();
   },
   'switch-user': () => switchUser(),
+  'login-maison': () => submitWelcome(true),
+  'pick-face'(el) {
+    const m = state.members.find((x) => x.id === el.dataset.id);
+    if (!m) return;
+    $('#w-name').value = m.name;
+    if (!m.pinHash) return submitWelcome(false);
+    $('#w-code').value = '';
+    $('#w-code').focus();
+  },
+  'email-login': () => renderLogin('login'),
+  'email-signup': () => renderLogin('signup'),
+  'welcome-back': () => renderWelcomeUnlinked(),
   'pick-profile'(el) {
     const m = state.members.find((x) => x.id === el.dataset.id);
     if (!m) return;
@@ -1409,7 +1542,7 @@ const ACTIONS = {
   'add-member': () => openMemberModal(null),
   'add-maison': () => openMemberModal({ name: 'Maison', lastName: '', role: 'maison', color: '#3FB0A4', emoji: '' }, {}),
   'show-card'(el) { const m = state.members.find((x) => x.id === el.dataset.id); if (m) openCard(m); },
-  'card-done'() { const done = cardDone; cardDone = null; closeModal(); if (done) done(); },
+  'card-done'() { const done = cardDone; cardDone = null; closeModal(); if (done) done(); else if (!state.me && state.membersLoaded) renderWho(); },
   'remove-photo'() { memberPhoto = null; $('#photo-preview').style.backgroundImage = ''; updatePhotoPreview(); },
   compose: () => openCompose(),
   box(el) { state.box = el.dataset.box; refresh(); },
@@ -1569,6 +1702,7 @@ document.addEventListener('change', async (e) => {
 document.addEventListener('submit', async (e) => {
   const f = e.target;
   e.preventDefault();
+  if (f.id === 'welcome-form') { submitWelcome(false); return; }
   if (f.id === 'login-form') {
     const email = f.email.value.trim(), pw = f.password.value;
     const btn = f.querySelector('.btn-primary'); btn.disabled = true;

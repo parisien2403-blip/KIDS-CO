@@ -44,11 +44,11 @@ La synchronisation entre appareils utilise **Firebase** (Google), dont l'offre g
    - **Android** : dans Chrome, menu ⋮ → *Installer l'application*.
    - **PC / tablette Windows** : dans Chrome ou Edge, icône d'installation dans la barre d'adresse.
 3. Premier lancement :
-   - **Sur le premier appareil**, un parent crée le compte de la famille (e-mail + mot de passe), choisit *Créer notre famille*, puis crée **son profil**.
-   - Dans *Réglages → La famille*, il ajoute les autres membres : conjoint(e) et enfants. Chacun a son prénom, son avatar, sa couleur et un **code secret à 4 chiffres** facultatif.
-   - **Sur les autres appareils**, connectez-vous avec ce même compte de famille (ou un autre compte + *Rejoindre* avec le code d'invitation affiché dans Réglages).
-   - Chacun choisit ensuite son profil sur l'écran **« Qui est là ? »**. L'appareil s'en souvient ; le bouton *Changer* permet de passer d'une personne à l'autre.
-   - Sur la **tablette de la cuisine**, activez dans Réglages le **mode tablette** et **« Demander qui est là à chaque ouverture »**.
+   - **Sur le premier appareil**, un parent touche « Nouvelle famille ? Créer notre compte » (e-mail + mot de passe), crée la famille puis **son compte** (prénom, nom, photo, code secret). Le compte **Maison** est créé automatiquement.
+   - Dans *Réglages → La famille*, il ajoute son conjoint(e) et les enfants, chacun avec son code secret, et note le **code famille** (8 caractères).
+   - **Sur un autre téléphone ou PC** : la page d'accueil demande le **code famille**, le **prénom** et le **code secret**. C'est tout (une seule fois par appareil).
+   - **Ensuite, à l'ouverture** : prénom + code secret (ou toucher sa photo). Cochez « Rester connecté sur cet appareil » pour ne pas le retaper à chaque fois.
+   - Sur la **tablette de la cuisine** : bouton **🏠 Connexion Maison**.
 
 ### Comptes, photos et carte Kids & Co
 - Chaque compte a un **prénom, un nom et une photo** (prise avec l'appareil photo ou choisie dans la galerie ; elle est recadrée et allégée automatiquement). Un avatar rigolo reste possible à la place.

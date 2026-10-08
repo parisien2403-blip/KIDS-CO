@@ -2,6 +2,16 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '2.0', date: '2026-10-08', title: 'Nouvelle page d’accueil : prénom + code secret',
+    items: [
+      'À l’ouverture, chacun se connecte avec son prénom et son code secret (ou en touchant sa photo)',
+      'Nouveau téléphone ou PC : code famille + prénom + code secret, sans e-mail ni mot de passe',
+      'Gros bouton « 🏠 Connexion Maison » pour la tablette de la cuisine',
+      'Le compte Maison est créé automatiquement avec chaque nouvelle famille',
+      'Case « Rester connecté sur cet appareil »',
+    ],
+  },
+  {
     version: '1.9.1', date: '2026-10-08', title: 'Numéro de version et nouveautés',
     items: [
       'Le numéro de version s’affiche dans la barre de gauche et dans Réglages → À propos',
