@@ -15,4 +15,11 @@
 //   appId: "1:1234567890:web:abcdef123456"
 // };
 
-export const firebaseConfig = null;
+export const firebaseConfig = {
+  apiKey: "AIzaSyDvYsRROMDZALtwrzOpmAudEt-t6AA4HBY",
+  authDomain: "kids-and-co-14fc9.firebaseapp.com",
+  projectId: "kids-and-co-14fc9",
+  storageBucket: "kids-and-co-14fc9.firebasestorage.app",
+  messagingSenderId: "788362554630",
+  appId: "1:788362554630:web:761d72a3843442d04e4287"
+};
