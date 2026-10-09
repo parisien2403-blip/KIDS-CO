@@ -2,6 +2,10 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '2.9.1', date: '2026-10-09', title: 'Pavé de verrouillage adapté à l’écran',
+    items: ['Le pavé du code (avec le 0, l’empreinte et ⌫) tient entièrement sur tous les téléphones'],
+  },
+  {
     version: '2.9', date: '2026-10-09', title: 'Date de naissance et règle des moins de 13 ans',
     items: [
       'Date de naissance sur la fiche et la carte Kids & Co (avec l’âge), saisie par un parent',
