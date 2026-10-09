@@ -1038,3 +1038,8 @@ img.avatar{width:42px;height:42px}
 .wish-actions .btn{width:100%}
 .wish-res{display:block;text-align:center;font-weight:700;color:var(--text2);padding:8px}
 .ver-badge{display:inline-block;vertical-align:middle;margin-left:6px;font:700 11px/1 var(--sans,inherit);letter-spacing:.02em;padding:4px 8px;border-radius:999px;border:0;background:rgba(255,255,255,.75);color:var(--accent,#244a6e);cursor:pointer}
+.upd-btn{position:relative;width:44px;height:44px;flex-shrink:0;border-radius:50%;border:0;display:grid;place-items:center;background:rgba(255,255,255,.75);color:var(--accent,#244a6e);cursor:pointer;box-shadow:0 4px 12px -6px rgba(34,71,107,.45)}
+.upd-btn svg{width:22px;height:22px}
+.upd-btn.spin svg{animation:upd-spin .8s linear infinite}
+.upd-btn.has::after{content:'';position:absolute;top:4px;right:4px;width:11px;height:11px;border-radius:50%;background:var(--coral,#f2896b);border:2px solid #fff}
+@keyframes upd-spin{to{transform:rotate(360deg)}}

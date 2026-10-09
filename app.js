@@ -938,6 +938,7 @@ function renderShell() {
       <div class="me-card" id="me-card"></div>
       <button class="app-version" data-action="whats-new">Version ${APP_VERSION} · Nouveautés</button></nav>
     <header class="topbar"><img src="logo.png" alt=""><div><span class="brand-name">Kids &amp; Co <button class="ver-badge" data-action="whats-new" title="Nouveautés">v${APP_VERSION}</button></span><small id="fam-name-top">${esc(state.family.name)}</small></div>
+      <button class="upd-btn ${updateAvail ? 'has' : ''}" data-action="update-now" aria-label="Mettre à jour l’appli" title="Mettre à jour"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></button>
       <button class="me-btn" data-action="nav" data-view="reglages" aria-label="Mon compte et réglages" id="me-btn"></button></header>
     <main id="main"></main>
     <nav class="tabbar" id="nav-tab"></nav>
@@ -2057,6 +2058,7 @@ const ACTIONS = {
   'whats-new': () => openWhatsNew(),
   'check-update': () => checkUpdate(true),
   'do-update': () => doUpdate(),
+  'update-now'(el) { el.classList.add('spin'); toast('🔄 Recherche d’une mise à jour…'); checkUpdate(true).finally(() => setTimeout(() => el.classList.remove('spin'), 600)); },
   'mission-check'(el) { toggleTask(el.dataset.kid, el.dataset.date, el.dataset.task); },
   'mission-kid'(el) { state.missionKid = el.dataset.id; if (el.dataset.go) go('missions'); else refresh(); },
   'mission-day'(el) { state.missionDay = Number(el.dataset.i); refresh(); },
@@ -2466,13 +2468,15 @@ function showNewsIfUpdated() {
   if (seen && seen !== APP_VERSION && !$('#modal-root').innerHTML) openWhatsNew({ onlyNew: true, since: seen });
 }
 // Vérifie régulièrement si une nouvelle version a été publiée (la tablette reste ouverte longtemps).
-let updateShown = false;
+let updateShown = false, updateAvail = false;
 async function checkUpdate(manual = false) {
   try {
     const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
     const { version } = await r.json();
     if (version === APP_VERSION && location.search.includes('v=')) history.replaceState(null, '', location.pathname + location.hash);
     if (version && version !== APP_VERSION) {
+      updateAvail = true; document.querySelector('.upd-btn')?.classList.add('has');
+      if (manual) return doUpdate(version);
       // Mise à jour automatique (une seule tentative par version, pour ne jamais boucler).
       if (ls.get('kc-auto-update') !== version) { ls.set('kc-auto-update', version); return doUpdate(version); }
       if (!updateShown) {
