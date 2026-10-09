@@ -74,6 +74,7 @@ const ICON = {
   chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.6A8 8 0 1 1 21 12z"/></svg>',
   star: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>',
   photo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="15" rx="3"/><circle cx="12" cy="12.5" r="3.5"/><path d="M8 5l1.5-2h5L16 5"/></svg>',
+  gift: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M3 12h18M12 8v13M12 8S10.5 3 7.5 3.5 6 8 12 8zm0 0s1.5-5 4.5-4.5S18 8 12 8z"/></svg>',
   more: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>',
   target: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg>',
   verif: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
@@ -189,7 +190,7 @@ const save = (p) => Promise.resolve(p).catch((e) => { console.error(e); toast('E
 /* ================= État ================= */
 const state = {
   user: null, me: null, family: null,
-  members: [], events: [], messages: [], notes: [], cours: [], edtNotes: [], edtConfig: {}, absences: [], presence: [], missions: [], push: [], photos: [], polls: [],
+  members: [], events: [], messages: [], notes: [], cours: [], edtNotes: [], edtConfig: {}, absences: [], presence: [], missions: [], push: [], photos: [], polls: [], wishes: [],
   view: 'accueil',
   month: (() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); })(),
   selected: todayStr(),
@@ -375,7 +376,7 @@ const colorPicker = (current) => `<div class="colors">${COLORS.map((c) =>
 
 function evItem(ev, withDate) {
   const meta = [CATEGORIES[ev.category] || '', withDate ? fmtLong(parseYmd(withDate)) : '', ev.repeat && ev.repeat !== 'none' ? '🔁' : '',
-    ev.alert?.on ? '🔔' : '', ev.verify ? '📌 À vérifier' : '', ev.notes ? '📝' : ''].filter(Boolean).join(' · ');
+    ev.alert?.on ? '🔔' : '', ev.verify ? '📌 À vérifier' : '', ev.notes ? '📝' : '', ev.images?.length ? `🖼️ ${ev.images.length}` : ''].filter(Boolean).join(' · ');
   const imp = IMPORTANCE[ev.importance || 0];
   return `<button class="ev imp${ev.importance || 0}" style="--c:${esc(evColor(ev))}" data-action="edit-event" data-id="${esc(ev.id)}">
     <span class="ev-time">${ev.allDay || !ev.time ? '<span class="ev-allday">Journée</span>' : `${esc(ev.time)}${ev.end ? `<small>${esc(ev.end)}</small>` : ''}`}</span>
@@ -605,6 +606,7 @@ function startAs(m, { quiet = false } = {}) {
     ls.set('maison-tablet', '1'); applyTablet();
     if (!quiet) toast('Mode tablette de la maison activé 🏠');
   }
+  loadHolidays();
   if (state.pendingView && NAV.some((n) => n[0] === state.pendingView)) { state.view = state.pendingView; state.pendingView = null; }
   renderShell();
   resetIdle();
@@ -850,6 +852,7 @@ async function enter(user) {
     backend.subscribe('push', (list) => { state.push = list; }),
     backend.subscribe('photos', (list) => { state.photos = list.sort((a, b) => b.ts - a.ts); refresh(); }, { limit: 300 }),
     backend.subscribe('polls', onPolls),
+    backend.subscribe('wishes', (list) => { state.wishes = list.sort((a, b) => (b.prio ? 1 : 0) - (a.prio ? 1 : 0) || b.ts - a.ts); refresh(); }),
   );
 }
 
@@ -900,7 +903,7 @@ function onMessages(list) {
 const NAV = [
   ['accueil', 'Accueil', 'home'], ['agenda', 'Agenda', 'cal'], ['verif', 'À vérifier', 'verif', 'Vérifier'],
   ['missions', 'Missions', 'target'], ['edt', 'Emploi du temps', 'book', 'Lycée'], ['messages', 'Messages', 'chat'],
-  ['album', 'Album photo', 'photo', 'Album'], ['important', 'Pense-bête', 'star', 'Notes'], ['reglages', 'Réglages', 'gear'],
+  ['album', 'Album photo', 'photo', 'Album'], ['envies', 'Listes d’envies', 'gift', 'Envies'], ['important', 'Pense-bête', 'star', 'Notes'], ['reglages', 'Réglages', 'gear'],
 ];
 const navBadges = () => ({ messages: unreadCount() + pollsToVote().length, verif: verifItems().filter((i) => !i.done).length, missions: missionsLeftToday() });
 const navItems = () => NAV.filter((n) => n[0] !== 'missions' || canSeeMissions());
@@ -1001,6 +1004,7 @@ const VIEWS = {
           <button class="btn btn-arrive" data-action="arrive">📍 Bien arrivé</button>
         </div></div>
       ${presenceStrip()}
+      ${holidayCountdown()}
       <div class="dash-grid">
         <section class="card tint-peach"><div class="card-head"><h2>Aujourd’hui</h2><span class="muted small">${today.length || 'Rien'} prévu${today.length > 1 ? 's' : ''}</span></div>
           <div class="list">${today.map((ev) => evItem(ev)).join('') || '<div class="empty">Journée libre ☀️</div>'}</div></section>
@@ -1028,9 +1032,9 @@ const VIEWS = {
     const sel = state.selected;
     const selEvents = eventsByDay(sel, sel)[sel] || [];
     const cells = days.map((d) => {
-      const k = ymd(d), list = map[k] || [];
-      return `<button class="cal-day ${d.getMonth() !== m.getMonth() ? 'out' : ''} ${k === t ? 'today' : ''} ${k === sel ? 'sel' : ''}" data-action="select-day" data-date="${k}">
-        <span class="num">${d.getDate()}</span>
+      const k = ymd(d), list = map[k] || [], hol = holidayOn(k), fer = ferieOn(k);
+      return `<button class="cal-day ${d.getMonth() !== m.getMonth() ? 'out' : ''} ${k === t ? 'today' : ''} ${k === sel ? 'sel' : ''} ${hol ? 'vac' : ''} ${fer ? 'ferie' : ''}" data-action="select-day" data-date="${k}" title="${esc([fer && fer + ' (férié)', hol && hol.name].filter(Boolean).join(' · '))}">
+        <span class="num">${d.getDate()}</span>${fer ? `<span class="cal-tag ferie-tag">🇫🇷 ${esc(fer)}</span>` : hol && (k === hol.from || d.getDay() === 1 || d.getDate() === 1) ? `<span class="cal-tag vac-tag">🏖️ ${esc(hol.short)}</span>` : ''}
         ${list.slice(0, 3).map((ev) => `<span class="chip imp${ev.importance || 0}" style="--c:${esc(evColor(ev))}">${ev.verify ? '📌 ' : ''}${ev.allDay || !ev.time ? '' : esc(ev.time) + ' '}${esc(ev.title)}</span>`).join('')}
         ${list.length > 3 ? `<span class="more">+${list.length - 3}</span>` : ''}
         ${list.length ? `<span class="dots">${list.slice(0, 4).map((ev) => `<span class="dot imp${ev.importance || 0}" style="--c:${esc(evColor(ev))}"></span>`).join('')}</span>` : ''}
@@ -1044,9 +1048,11 @@ const VIEWS = {
         <button class="btn btn-primary" data-action="new-event" data-date="${sel}">${ICON.plus} Ajouter</button></div>
       <div class="agenda">
         <div><div class="cal">${DOW.map((d) => `<div class="cal-dow">${d}</div>`).join('')}${cells}</div>
-          <div class="legend"><span><i class="lg imp1"></i>Important</span><span><i class="lg imp2"></i>Urgent</span><span>🔁 Répété</span><span>🔔 Alerte</span></div></div>
+          <div class="legend"><span><i class="lg imp1"></i>Important</span><span><i class="lg imp2"></i>Urgent</span><span>🔁 Répété</span><span>🔔 Alerte</span>
+            <span><i class="lg vac"></i>Vacances zone ${esc(schoolZone())}</span><span>🇫🇷 Férié</span></div></div>
         <section class="card day-panel"><div class="card-head"><h2>${esc(fmtLong(parseYmd(sel)))}</h2>
           <button class="btn btn-icon" data-action="new-event" data-date="${sel}" aria-label="Ajouter ce jour">${ICON.plus}</button></div>
+          ${dayBanner(sel)}
           <div class="list">${selEvents.map((ev) => evItem(ev)).join('') || '<div class="empty">Rien de prévu ce jour-là.</div>'}</div></section>
       </div>`;
   },
@@ -1062,6 +1068,7 @@ const VIEWS = {
   },
 
   album() { return albumView(); },
+  envies() { return wishesView(); },
 
   missions() {
     const kids = missionKids();
@@ -1138,7 +1145,9 @@ const VIEWS = {
       <form class="note-add" id="note-form">
         <input type="text" id="note-input" placeholder="Choses importantes, courses, à faire…" maxlength="300">
         <button type="button" class="toggle-imp ${state.noteImportant ? 'on' : ''}" data-action="toggle-imp">★ Important</button>
+        <label class="btn btn-icon-txt" title="Ajouter une image">📷<input type="file" class="note-att-input" accept="image/*" multiple hidden></label>
         <button class="btn btn-primary">${ICON.plus} Ajouter</button>
+        ${state.noteAtt?.length ? `<div class="att-list">${state.noteAtt.map((im) => `<span class="att-item"><img src="${esc(im.thumb)}" alt=""><button type="button" data-action="note-att-del" data-id="${esc(im.id)}" aria-label="Retirer">✕</button></span>`).join('')}</div>` : ''}
       </form>
       <div class="list">${open.map(noteItem).join('') || '<div class="empty">Rien à faire, profitez-en !</div>'}</div>
       ${done.length ? `<div class="section-title"><span>Terminé (${done.length})</span><span>
@@ -1573,6 +1582,7 @@ function openEdtSettings() {
       <option value="A" ${wt === 'A' ? 'selected' : ''}>Cette semaine est une semaine A</option>
       <option value="B" ${wt === 'B' ? 'selected' : ''}>Cette semaine est une semaine B</option></select></label>
     <label class="check-line"><input type="checkbox" name="saturday" ${cfg.saturday ? 'checked' : ''}> Cours le samedi</label>
+    <label class="field"><span>Zone des vacances scolaires</span><select name="zone">${['A', 'B', 'C'].map((z) => `<option value="${z}" ${schoolZone() === z ? 'selected' : ''}>Zone ${z}${z === 'A' ? ' (Bordeaux, Lyon, Grenoble…)' : z === 'B' ? ' (Lille, Rennes, Strasbourg…)' : ' (Paris, Montpellier, Toulouse…)'}</option>`).join('')}</select></label>
     <div class="modal-actions"><span class="grow"></span><button type="button" class="btn" data-action="close-modal-btn">Annuler</button><button class="btn btn-primary">Enregistrer</button></div>
   </form></div>`;
 }
@@ -1788,7 +1798,8 @@ function noteItem(n) {
   const a = member(n.author);
   return `<div class="note ${n.important ? 'imp' : ''} ${n.done ? 'done' : ''}">
     <button class="check" data-action="toggle-note" data-id="${esc(n.id)}" aria-label="Fait">${n.done ? ICON.check : ''}</button>
-    <div class="note-text">${esc(n.text)}<div class="note-meta">${esc(a.name)} · ${new Date(n.ts).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}</div></div>
+    <div class="note-text">${esc(n.text)}${n.images?.length ? `<div class="att-thumbs">${n.images.map((im) => `<button class="att-thumb" data-action="open-att" data-id="${esc(im.id)}"><img src="${esc(im.thumb)}" alt=""></button>`).join('')}</div>` : ''}
+      <div class="note-meta">${esc(a.name)} · ${new Date(n.ts).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}</div></div>
     <button class="star" data-action="star-note" data-id="${esc(n.id)}" aria-label="Important">${n.important ? '★' : '☆'}</button>
     <button class="del" data-action="del-note" data-id="${esc(n.id)}" aria-label="Supprimer">${ICON.trash}</button>
   </div>`;
@@ -1830,11 +1841,14 @@ function openEventModal(ev, date, { verify = false } = {}) {
       </div>
     </div>
     <label class="field"><span>Notes</span><textarea name="notes" maxlength="1000" placeholder="Adresse, documents à apporter…">${esc(ev.notes)}</textarea></label>
+    <div class="field"><span>Images (ordonnance, convocation, plan…)</span><div class="att-box"><div class="att-list"></div>
+      <label class="btn btn-sm att-add">📷 Ajouter une image<input type="file" class="att-input" accept="image/*" multiple hidden></label></div></div>
     ${!isNew && ev.createdBy ? `<p class="small muted">Ajouté par ${esc(member(ev.createdBy).name)}</p>` : ''}
     <div class="error"></div>
     <div class="modal-actions">${isNew ? '' : `<button type="button" class="btn btn-danger" data-action="delete-event">${ICON.trash} Supprimer</button>`}
       <span class="grow"></span><button type="button" class="btn" data-action="close-modal-btn">Annuler</button><button class="btn btn-primary">Enregistrer</button></div>
   </form></div>`;
+  const ef = $('#event-form'); ef.__att = (ev.images || []).map((x) => ({ ...x })); ef.__old = (ev.images || []).map((x) => x.id); renderAttach(ef);
   if (isNew) setTimeout(() => $('#event-form [name=title]')?.focus(), 50);
 }
 // Fiche en lecture seule (moins de 13 ans) : on peut regarder, pas modifier.
@@ -1846,7 +1860,7 @@ function readOnlyForm(form, label) {
 }
 const closeModal = () => { $('#modal-root').innerHTML = ''; setTimeout(checkAlerts, 400); };
 
-function submitEvent(form) {
+async function submitEvent(form) {
   const fd = new FormData(form);
   const repeat = fd.get('repeat');
   const data = {
@@ -1867,6 +1881,8 @@ function submitEvent(form) {
     askNotifications();
   } else data.alert = null;
   const id = form.dataset.id;
+  data.images = await saveAttachments(form.__att || []);
+  (form.__old || []).filter((x) => !data.images.some((im) => im.id === x)).forEach((x) => save(backend.remove('attachments', x)));
   if (id) save(backend.update('events', id, data));
   else save(backend.add('events', { ...data, createdBy: state.me.id, ts: Date.now() }));
   const when = `${cap(parseYmd(data.date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }))}${data.allDay || !data.time ? '' : ' à ' + data.time}`;
@@ -1952,6 +1968,24 @@ const ACTIONS = {
   'remove-photo'() { memberPhoto = null; $('#photo-preview').style.backgroundImage = ''; updatePhotoPreview(); },
   compose: () => openCompose(),
   'nav-more': () => openNavMore(),
+  'wish-who'(el) { state.wishWho = el.dataset.id; refresh(); },
+  'wish-new'() { openWish(null); },
+  'wish-edit'(el) { openWish(state.wishes.find((x) => x.id === el.dataset.id)); },
+  'wish-del'(el) {
+    const w = state.wishes.find((x) => x.id === el.dataset.id);
+    if (!w || !confirm(`Retirer « ${w.title} » de la liste ?`)) return;
+    if (w.image) save(backend.remove('attachments', w.image.id));
+    save(backend.remove('wishes', w.id)); closeModal();
+  },
+  'wish-reserve'(el) {
+    const w = state.wishes.find((x) => x.id === el.dataset.id);
+    if (!w || w.owner === state.me.id) return;
+    if (w.reservedBy && w.reservedBy !== state.me.id) return toast('Déjà réservé par quelqu’un d’autre');
+    const mine = w.reservedBy === state.me.id;
+    save(backend.update('wishes', w.id, { reservedBy: mine ? null : state.me.id, reservedAt: mine ? null : Date.now() }));
+    toast(mine ? 'Réservation annulée' : `🎁 Réservé ! ${member(w.owner).name} ne le verra pas 🤫`);
+  },
+  'zone-set'(el) { save(backend.set('edtConfig', 'main', { zone: el.dataset.z })); state.edtConfig.zone = el.dataset.z; holidays = null; loadHolidays(); refresh(); },
   'box-polls'() { state.box = 'polls'; go('messages'); },
   'nav-from-more'(el) { closeModal(); go(el.dataset.view); },
   arrive: () => openArrive(),
@@ -2070,6 +2104,7 @@ const ACTIONS = {
     const id = $('#event-form').dataset.id;
     const ev = state.events.find((x) => x.id === id);
     if (!confirm(`Supprimer « ${ev?.title} »${ev?.repeat !== 'none' ? ' (toutes les répétitions)' : ''} ?`)) return;
+    (ev?.images || []).forEach((im) => save(backend.remove('attachments', im.id)));
     save(backend.remove('events', id)); closeModal(); toast('Rendez-vous supprimé');
     if (ev) notify('all', { title: `🗑️ Supprimé : ${ev.title}`, body: `par ${state.me.name}`, tag: 'ev-' + id, view: 'agenda' });
   },
@@ -2144,7 +2179,14 @@ const ACTIONS = {
   'toggle-imp'() { state.noteImportant = !state.noteImportant; refresh(); },
   'toggle-note'(el) { const n = state.notes.find((x) => x.id === el.dataset.id); if (n) save(backend.update('notes', n.id, { done: !n.done, doneTs: Date.now() })); },
   'star-note'(el) { const n = state.notes.find((x) => x.id === el.dataset.id); if (n) save(backend.update('notes', n.id, { important: !n.important })); },
-  'del-note'(el) { save(backend.remove('notes', el.dataset.id)); },
+  'del-note'(el) {
+    const n = state.notes.find((x) => x.id === el.dataset.id);
+    (n?.images || []).forEach((im) => save(backend.remove('attachments', im.id)));
+    save(backend.remove('notes', el.dataset.id));
+  },
+  'note-att-del'(el) { state.noteAtt = (state.noteAtt || []).filter((x) => x.id !== el.dataset.id); refresh(); },
+  'att-del'(el) { const f = el.closest('form'); f.__att = f.__att.filter((x) => x.id !== el.dataset.id); renderAttach(f); },
+  'open-att'(el) { openAttachment(el.dataset.id); },
   'toggle-done'() { state.showDone = !state.showDone; refresh(); },
   'clear-done'() {
     const done = state.notes.filter((n) => n.done);
@@ -2193,6 +2235,16 @@ document.addEventListener('click', (e) => {
 document.addEventListener('change', async (e) => {
   const t = e.target;
   if (t.id === 'album-upload' && t.files?.length) { uploadPhotos([...t.files]); t.value = ''; return; }
+  if (t.classList.contains('att-input') && t.files?.length) {
+    const f = t.closest('form'), max = f.dataset.single ? 1 : 4;
+    for (const file of [...t.files]) { if (f.__att.length >= max) f.__att.shift(); f.__att.push(await prepareAttachment(file)); }
+    t.value = ''; renderAttach(f); return;
+  }
+  if (t.classList.contains('note-att-input') && t.files?.length) {
+    state.noteAtt = state.noteAtt || [];
+    for (const file of [...t.files].slice(0, 4)) state.noteAtt.push(await prepareAttachment(file));
+    t.value = ''; refresh(); return;
+  }
   if (t.id === 'photo-input' && t.files && t.files[0]) {
     try { memberPhoto = await readPhoto(t.files[0]); updatePhotoPreview(); }
     catch { toast('Impossible de lire cette photo, essayez-en une autre.', true); }
@@ -2233,6 +2285,7 @@ document.addEventListener('submit', async (e) => {
   else if (f.id === 'event-form') submitEvent(f);
   else if (f.id === 'compose-form') submitCompose(f);
   else if (f.id === 'arrive-form') submitArrive(f);
+  else if (f.id === 'wish-form') submitWish(f);
   else if (f.id === 'poll-form') submitPoll(f);
   else if (f.id === 'caption-form') { const id = f.dataset.id, c = f.caption.value.trim(); save(backend.update('photos', id, { caption: c })); toast('Légende enregistrée'); }
   else if (f.id === 'forgot-form') submitForgot(f);
@@ -2252,16 +2305,21 @@ document.addEventListener('submit', async (e) => {
   } else if (f.id === 'absence-form') { submitAbsence(f); return;
   } else if (f.id === 'edt-settings-form') {
     const ab = f.ab.value, mon = mondayOf(new Date());
-    save(backend.set('edtConfig', 'main', { title: f.title.value.trim() || 'Lycée Max Linder', studentId: f.studentId.value, saturday: f.saturday.checked,
+    if (f.zone.value !== schoolZone()) { holidays = null; setTimeout(loadHolidays, 300); }
+    save(backend.set('edtConfig', 'main', { zone: f.zone.value, title: f.title.value.trim() || 'Lycée Max Linder', studentId: f.studentId.value, saturday: f.saturday.checked,
       refA: ab === 'A' ? ymd(mon) : ab === 'B' ? ymd(addDays(mon, -7)) : '' }));
     closeModal(); toast('Emploi du temps mis à jour');
   }
   else if (f.id === 'note-form') {
     const input = $('#note-input'), text = input.value.trim();
-    if (!text) return;
-    save(backend.add('notes', { text, important: state.noteImportant, done: false, author: state.me.id, ts: Date.now() }));
+    if (!text && !state.noteAtt?.length) return;
+    input.value = '';
+    const images = await saveAttachments(state.noteAtt || []);
+    save(backend.add('notes', { text: text || '📷 Image', images, important: state.noteImportant, done: false, author: state.me.id, ts: Date.now() }));
+    state.noteAtt = [];
     if (state.noteImportant) notify('all', { title: `⭐ À ne pas oublier`, body: `${text} — ${state.me.name}`, tag: 'note', view: 'important' });
-    input.value = ''; state.noteImportant = false; refresh();
+    const ni = $('#note-input'); if (ni) ni.value = '';
+    state.noteImportant = false; refresh();
   } else if (f.id === 'member-form') submitMember(f);
   else if (f.id === 'family-form') $('#f-name').blur();
 });
@@ -2525,6 +2583,169 @@ async function downloadQr() {
   g.fillText('Scannez pour ouvrir l’appli', 400, 880);
   const a = document.createElement('a');
   a.href = c.toDataURL('image/png'); a.download = 'kids-and-co-qr.png'; a.click();
+}
+
+/* ================= 📎 Images jointes (notes, rendez-vous, envies) ================= */
+// Miniature dans le document (affichage rapide) + grande image à part dans « attachments ».
+async function prepareAttachment(file) {
+  const thumb = await resizeImage(file, 320, 0.7);
+  let full = await resizeImage(file, 1600, 0.82);
+  if (full.length > 900000) full = await resizeImage(file, 1200, 0.72);
+  return { id: 'a' + newCode().toLowerCase() + Date.now().toString(36), thumb, full };
+}
+async function saveAttachments(list) {
+  const out = [];
+  for (const im of list) {
+    if (im.full) await save(backend.set('attachments', im.id, { data: im.full }));
+    out.push({ id: im.id, thumb: im.thumb });
+  }
+  return out;
+}
+function renderAttach(f) {
+  const box = f.querySelector('.att-list');
+  if (!box) return;
+  box.innerHTML = (f.__att || []).map((im) => `<span class="att-item"><img src="${esc(im.thumb)}" alt="" data-action="open-att" data-id="${esc(im.id)}" data-src="${esc(im.full || '')}">
+    <button type="button" data-action="att-del" data-id="${esc(im.id)}" aria-label="Retirer">✕</button></span>`).join('');
+}
+async function openAttachment(id) {
+  const local = document.querySelector(`[data-action=open-att][data-id="${CSS.escape(id)}"]`);
+  let src = local?.dataset.src || '';
+  const holder = document.createElement('div');
+  holder.className = 'att-viewer';
+  holder.innerHTML = `<img src="${esc(local?.querySelector?.('img')?.src || local?.src || '')}" alt=""><button class="btn btn-primary">Fermer</button>`;
+  holder.addEventListener('click', () => holder.remove());
+  document.body.append(holder);
+  if (!src) { try { src = (await backend.get('attachments', id))?.data || ''; } catch {} }
+  if (src) holder.querySelector('img').src = src;
+}
+
+/* ================= 🎁 Listes d'envies ================= */
+// Chacun a sa liste. Les autres réservent un cadeau ; la personne concernée ne voit jamais les réservations.
+function wishesView() {
+  const people = state.members.filter((m) => !isMaison(m));
+  const who = people.some((m) => m.id === state.wishWho) ? state.wishWho : state.me.id && !isMaison(state.me) ? state.me.id : people[0]?.id;
+  const owner = member(who), mine = who === state.me.id, list = state.wishes.filter((w) => w.owner === who);
+  return `<div class="view-head"><div><div class="eyebrow">Noël, anniversaires… 🤫 surprise garantie</div><h1>🎁 Listes d’envies</h1></div>
+      ${mine ? `<button class="btn btn-primary" data-action="wish-new">${ICON.plus} Ajouter une envie</button>` : ''}</div>
+    <div class="kid-tabs">${people.map((m) => `<button class="kid-tab ${m.id === who ? 'on' : ''}" style="--c:${esc(m.color)}" data-action="wish-who" data-id="${esc(m.id)}">${avatar(m)} ${m.id === state.me.id ? 'Ma liste' : esc(m.name)}
+      <span class="kid-stars">🎁 ${state.wishes.filter((w) => w.owner === m.id).length}</span></button>`).join('')}</div>
+    ${!mine && list.length ? `<p class="small muted" style="margin:-4px 0 12px">🤫 ${esc(owner.name)} ne voit pas ce qui est réservé. Réservez un cadeau pour que personne d’autre ne l’offre en double.</p>` : ''}
+    <div class="wish-grid">${list.map((w) => wishCard(w, mine)).join('')
+      || `<div class="card empty-verif"><h2>${mine ? 'Votre liste est vide 🎁' : `${esc(owner.name)} n’a encore rien demandé`}</h2>
+        <p class="muted">${mine ? 'Ajoutez ce qui vous ferait plaisir : un nom, une photo, un lien vers le magasin, un prix.' : 'Revenez plus tard 😉'}</p></div>`}</div>`;
+}
+function wishCard(w, mine) {
+  const by = w.reservedBy ? member(w.reservedBy) : null;
+  return `<div class="wish ${!mine && by ? 'reserved' : ''}">
+    ${w.image ? `<button class="wish-img" data-action="open-att" data-id="${esc(w.image.id)}"><img src="${esc(w.image.thumb)}" alt=""></button>` : '<div class="wish-img empty">🎁</div>'}
+    <div class="wish-body"><b>${w.prio ? '❤️ ' : ''}${esc(w.title)}</b>
+      ${w.price ? `<span class="wish-price">${esc(w.price)}</span>` : ''}${w.note ? `<span class="small muted">${esc(w.note)}</span>` : ''}
+      ${w.link ? `<a class="small" href="${esc(w.link)}" target="_blank" rel="noopener">🔗 Voir le produit</a>` : ''}</div>
+    <div class="wish-actions">${mine ? `<button class="btn btn-sm" data-action="wish-edit" data-id="${esc(w.id)}">Modifier</button>`
+      : by ? (by.id === state.me.id ? `<button class="btn btn-sm btn-valid" data-action="wish-reserve" data-id="${esc(w.id)}">✓ Réservé par vous</button>` : `<span class="wish-res">🔒 Réservé par ${esc(by.name)}</span>`)
+      : `<button class="btn btn-sm btn-primary" data-action="wish-reserve" data-id="${esc(w.id)}">🎁 Je l’offre</button>`}</div>
+  </div>`;
+}
+function openWish(w) {
+  const isNew = !w;
+  w = w || { title: '', link: '', price: '', note: '', prio: false };
+  $('#modal-root').innerHTML = `<div class="modal-backdrop" data-action="close-modal"><form class="modal" id="wish-form" data-id="${esc(w.id || '')}" data-single="1">
+    <h2 style="margin-bottom:14px">${isNew ? '🎁 Nouvelle envie' : 'Modifier'}</h2>
+    <label class="field"><span>Quoi ?</span><input type="text" name="title" maxlength="80" required value="${esc(w.title)}" placeholder="Ex. Lego Harry Potter, livre, vélo…"></label>
+    <div class="row"><label class="field"><span>Prix (environ)</span><input type="text" name="price" maxlength="20" value="${esc(w.price)}" placeholder="Ex. 35 €"></label>
+      <label class="field"><span>Lien (magasin)</span><input type="text" inputmode="url" name="link" maxlength="400" value="${esc(w.link)}" placeholder="https://…"></label></div>
+    <label class="field"><span>Précision</span><input type="text" name="note" maxlength="140" value="${esc(w.note)}" placeholder="Taille, couleur, modèle…"></label>
+    <div class="field"><span>Photo</span><div class="att-box"><div class="att-list"></div>
+      <label class="btn btn-sm att-add">📷 Ajouter une photo<input type="file" class="att-input" accept="image/*" hidden></label></div></div>
+    <label class="check-line"><input type="checkbox" name="prio" ${w.prio ? 'checked' : ''}> ❤️ J’en ai très envie</label>
+    <div class="modal-actions">${isNew ? '' : `<button type="button" class="btn btn-danger" data-action="wish-del" data-id="${esc(w.id)}">${ICON.trash} Retirer</button>`}<span class="grow"></span>
+      <button type="button" class="btn" data-action="close-modal-btn">Annuler</button><button class="btn btn-primary">Enregistrer</button></div>
+  </form></div>`;
+  const f = $('#wish-form'); f.__att = w.image ? [{ ...w.image }] : []; f.__old = w.image ? [w.image.id] : []; renderAttach(f);
+}
+async function submitWish(f) {
+  const title = f.title.value.trim();
+  if (!title) return;
+  let link = f.link.value.trim();
+  if (link && !/^https?:\/\//i.test(link)) link = 'https://' + link;
+  const [image] = await saveAttachments(f.__att || []);
+  (f.__old || []).filter((x) => x !== image?.id).forEach((x) => save(backend.remove('attachments', x)));
+  const data = { title, link, price: f.price.value.trim(), note: f.note.value.trim(), prio: f.prio.checked, image: image || null };
+  if (f.dataset.id) save(backend.update('wishes', f.dataset.id, data));
+  else save(backend.add('wishes', { ...data, owner: state.me.id, ts: Date.now(), reservedBy: null }));
+  closeModal(); toast('🎁 Liste mise à jour');
+}
+
+/* ================= 🏖️ Vacances scolaires et 🇫🇷 jours fériés ================= */
+const schoolZone = () => edtCfg().zone || 'A';
+// Jours fériés calculés (dont Pâques, Ascension, Pentecôte).
+function easter(y) {
+  const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31), day = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(y, month - 1, day);
+}
+const feriesCache = {};
+function feries(y) {
+  if (feriesCache[y]) return feriesCache[y];
+  const e = easter(y), F = {};
+  [[`${y}-01-01`, 'Jour de l’an'], [ymd(addDays(e, 1)), 'Lundi de Pâques'], [`${y}-05-01`, 'Fête du travail'], [`${y}-05-08`, 'Victoire 1945'],
+    [ymd(addDays(e, 39)), 'Ascension'], [ymd(addDays(e, 50)), 'Lundi de Pentecôte'], [`${y}-07-14`, 'Fête nationale'], [`${y}-08-15`, 'Assomption'],
+    [`${y}-11-01`, 'Toussaint'], [`${y}-11-11`, 'Armistice'], [`${y}-12-25`, 'Noël']].forEach(([d, n]) => { F[d] = n; });
+  return (feriesCache[y] = F);
+}
+const ferieOn = (d) => feries(Number(d.slice(0, 4)))[d] || '';
+// Vacances : calendrier officiel (data.education.gouv.fr), gardé en mémoire ; quelques dates connues en secours.
+const HOLIDAYS_FALLBACK = { A: [
+  ['Vacances de la Toussaint', '2025-10-18', '2025-11-02'], ['Vacances de Noël', '2025-12-20', '2026-01-04'], ['Vacances d’hiver', '2026-02-07', '2026-02-22'],
+  ['Vacances de printemps', '2026-04-04', '2026-04-19'], ['Pont de l’Ascension', '2026-05-14', '2026-05-17'], ['Vacances d’été', '2026-07-04', '2026-08-31'],
+  ['Vacances de la Toussaint', '2026-10-17', '2026-11-01'], ['Vacances de Noël', '2026-12-19', '2027-01-03'],
+] };
+let holidays = null;
+function holidayList() {
+  if (holidays) return holidays;
+  try { const c = JSON.parse(ls.get('kc-holidays-' + schoolZone())); if (c?.list) return (holidays = c.list); } catch {}
+  return HOLIDAYS_FALLBACK[schoolZone()] || [];
+}
+async function loadHolidays() {
+  const zone = schoolZone(), key = 'kc-holidays-' + zone;
+  try { const c = JSON.parse(ls.get(key)); if (c && Date.now() - c.at < 7 * 864e5) { holidays = c.list; return; } } catch {}
+  try {
+    const from = `${new Date().getFullYear() - 1}-08-01`;
+    const url = `https://data.education.gouv.fr/api/explore/v2.1/catalog/datasets/fr-en-calendrier-scolaire/records?where=${encodeURIComponent(`zones="Zone ${zone}" and end_date>="${from}"`)}&limit=100&order_by=start_date`;
+    const r = await fetch(url);
+    const { results = [] } = await r.json();
+    const seen = new Set(), list = [];
+    for (const x of results) {
+      if (/enseignant/i.test(x.population || '')) continue;
+      // Dates converties à l'heure locale ; end_date = jour de la reprise des cours.
+      const loc = (v) => (String(v).includes('T') ? ymd(new Date(v)) : String(v).slice(0, 10));
+      let f0 = parseYmd(loc(x.start_date));
+      if (f0.getDay() === 5) f0 = addDays(f0, 1); // « après les cours » du vendredi
+      const from = ymd(f0), to = ymd(addDays(parseYmd(loc(x.end_date)), -1));
+      const k = x.description + from;
+      if (seen.has(k) || to < from) continue;
+      seen.add(k); list.push([x.description, from, to]);
+    }
+    if (list.length) { holidays = list; ls.set(key, JSON.stringify({ at: Date.now(), list })); refresh(); }
+  } catch (e) { console.warn('Vacances : calendrier officiel indisponible, dates de secours utilisées.', e); }
+}
+function holidayOn(d) {
+  const h = holidayList().find(([, f, t]) => d >= f && d <= t);
+  return h ? { name: h[0], short: h[0].replace(/^Vacances (de la |de |d’|d')?/i, '').replace(/^\w/, (c) => c.toUpperCase()), from: h[1], to: h[2] } : null;
+}
+function dayBanner(d) {
+  const fer = ferieOn(d), hol = holidayOn(d);
+  return (fer ? `<div class="day-banner ferie">🇫🇷 ${esc(fer)} — jour férié</div>` : '') + (hol ? `<div class="day-banner vac">🏖️ ${esc(hol.name)} (zone ${esc(schoolZone())}) · jusqu’au ${esc(shortDate(hol.to))}</div>` : '');
+}
+function holidayCountdown() {
+  const t = todayStr(), cur = holidayOn(t);
+  if (cur) return `<div class="holiday-banner on">🏖️ <b>${esc(cur.name)}</b> — bonnes vacances ! Reprise le ${esc(cap(parseYmd(ymd(addDays(parseYmd(cur.to), 1))).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })))}</div>`;
+  const next = holidayList().filter(([, f]) => f > t).sort((a, b) => a[1].localeCompare(b[1]))[0];
+  if (!next) return '';
+  const days = Math.round((parseYmd(next[1]) - parseYmd(t)) / 864e5);
+  if (days > 60) return '';
+  return `<div class="holiday-banner">🏖️ Plus que <b>${days} dodo${days > 1 ? 's' : ''}</b> avant les ${esc(next[0].replace(/^Vacances /, 'vacances ').replace(/^Pont/, 'pont'))} !</div>`;
 }
 
 /* ================= 📸 Album photo familial ================= */

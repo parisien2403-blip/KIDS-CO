@@ -992,3 +992,48 @@ img.avatar{width:42px;height:42px}
 .mini-place{font-size:11px;font-weight:800;color:#1F6F62;margin-top:2px}
 @media (max-width:600px){ .album-grid{grid-template-columns:repeat(3,1fr);gap:4px} .album-item{border-radius:10px} .ss-overlay{flex-direction:column;align-items:flex-start;padding:24px 18px} .ss-caption{text-align:left;max-width:100%} }
 @media (max-width:860px){ .dash-head .quick{grid-template-columns:1fr 1fr} }
+/* ===== 3.1 — Images jointes ===== */
+.btn-icon-txt{font-size:18px;padding:0 16px;cursor:pointer}
+.att-box{display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.att-add{cursor:pointer}
+.att-list{display:flex;flex-wrap:wrap;gap:8px;width:100%}
+.att-list:empty{display:none}
+.att-item{position:relative;width:76px;height:76px;border-radius:14px;overflow:hidden;border:1.5px solid var(--line);background:var(--row)}
+.att-item img{width:100%;height:100%;object-fit:cover;cursor:zoom-in}
+.att-item button{position:absolute;top:3px;right:3px;width:24px;height:24px;border-radius:50%;border:0;background:rgba(0,0,0,.6);color:#fff;font-size:12px;cursor:pointer}
+.att-thumbs{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 2px}
+.att-thumb{width:64px;height:64px;padding:0;border:0;border-radius:12px;overflow:hidden;cursor:zoom-in;background:var(--row)}
+.att-thumb img{width:100%;height:100%;object-fit:cover}
+.att-viewer{position:fixed;inset:0;z-index:300;background:rgba(10,10,20,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:16px}
+.att-viewer img{max-width:100%;max-height:calc(100dvh - 100px);border-radius:12px;object-fit:contain}
+.ev-images{display:flex;gap:6px;flex-wrap:wrap}
+/* ===== Vacances et fériés ===== */
+.cal-day.vac{background:linear-gradient(180deg,var(--sky,#dceefe) 0,var(--surface) 70%)}
+.cal-day.ferie .num{outline:2px dashed var(--coral);outline-offset:-2px}
+.cal-tag{font-size:10.5px;font-weight:700;border-radius:6px;padding:1px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.vac-tag{background:#cfe6fb;color:#1f5d8c}
+.ferie-tag{background:#fde2da;color:#b5452a}
+.lg.vac{background:#cfe6fb}
+.day-banner{border-radius:12px;padding:8px 12px;font-weight:600;font-size:14px;margin-bottom:8px}
+.day-banner.vac{background:#cfe6fb;color:#1f5d8c}
+.day-banner.ferie{background:#fde2da;color:#b5452a}
+.holiday-banner{border-radius:var(--r-md);padding:12px 18px;margin:0 0 16px;background:#e3f1fd;color:#1f5d8c;font-size:15px;border:1.5px solid #cfe6fb}
+.holiday-banner.on{background:linear-gradient(90deg,#fff3c4,#cfe6fb);color:#5a4a10}
+@media (max-width:760px){.cal-tag{display:none}}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .vac-tag,:root:not([data-theme=light]) .day-banner.vac,:root:not([data-theme=light]) .holiday-banner{background:#1d3a52;color:#cfe6fb;border-color:#2a5070}
+  :root:not([data-theme=light]) .cal-day.vac{background:linear-gradient(180deg,#1d3a52 0,var(--surface) 70%)}}
+:root[data-theme=dark] .vac-tag,:root[data-theme=dark] .day-banner.vac,:root[data-theme=dark] .holiday-banner{background:#1d3a52;color:#cfe6fb;border-color:#2a5070}
+:root[data-theme=dark] .cal-day.vac{background:linear-gradient(180deg,#1d3a52 0,var(--surface) 70%)}
+/* ===== Listes d'envies ===== */
+.wish-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+.wish{display:flex;flex-direction:column;border-radius:var(--r-md);background:var(--surface-strong);border:1.5px solid var(--line);overflow:hidden;box-shadow:var(--shadow)}
+.wish.reserved{opacity:.6}
+.wish-img{display:block;width:100%;aspect-ratio:4/3;padding:0;border:0;background:var(--row);cursor:zoom-in}
+.wish-img img{width:100%;height:100%;object-fit:cover}
+.wish-img.empty{display:grid;place-items:center;font-size:48px;cursor:default}
+.wish-body{display:flex;flex-direction:column;gap:4px;padding:12px 14px;flex:1}
+.wish-body b{font-size:16px}
+.wish-price{font-weight:700;color:var(--coral)}
+.wish-actions{padding:0 14px 14px}
+.wish-actions .btn{width:100%}
+.wish-res{display:block;text-align:center;font-weight:700;color:var(--text2);padding:8px}

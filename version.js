@@ -2,6 +2,14 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '3.1', date: '2026-10-09', title: '🎁 Listes d’envies, 🏖️ vacances scolaires et 📷 images',
+    items: [
+      'Listes d’envies : photo, lien, prix ; les autres réservent « Je l’offre », la personne ne voit rien 🤫',
+      'Vacances scolaires (zone A) et jours fériés dans l’agenda, compte à rebours « Plus que X dodos » sur l’accueil',
+      'Images dans les rendez-vous (ordonnance, convocation…) et dans les notes du pense-bête',
+    ],
+  },
+  {
     version: '3.0', date: '2026-10-09', title: '📸 Album photo, 🗳️ sondages et 📍 « Bien arrivé »',
     items: [
       'Album photo de la famille : ajout de photos, ❤️, légendes, diaporama ; l’écran Maison lance le diaporama après 5 min sans activité',
