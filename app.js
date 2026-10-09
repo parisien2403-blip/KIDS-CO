@@ -2626,8 +2626,11 @@ function prepareAttachment(file) {
         const big = draw(img, img.naturalWidth, img.naturalHeight, 1280);
         let full = big.toDataURL('image/jpeg', 0.75);
         if (full.length > 700000) full = big.toDataURL('image/jpeg', 0.55);
-        const thumb = draw(big, big.width, big.height, 320).toDataURL('image/jpeg', 0.7);
-        URL.revokeObjectURL(url);
+        const small = draw(big, big.width, big.height, 320), thumb = small.toDataURL('image/jpeg', 0.7);
+        // iPhone : la mémoire des dessins est très limitée ; on la libère tout de suite sinon la 2ᵉ photo échoue.
+        for (const c of [big, small]) { c.width = c.height = 0; }
+        img.src = ''; URL.revokeObjectURL(url);
+        if (full.length < 100 || thumb.length < 100) throw new Error('Mémoire insuffisante');
         resolve({ id: 'a' + newCode().toLowerCase() + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), thumb, full });
       } catch (e) { URL.revokeObjectURL(url); reject(e); }
     };
@@ -2641,7 +2644,14 @@ async function addAttachments(files, list, max, onDone) {
   let ok = 0;
   for (const [i, file] of imgs.entries()) {
     if (imgs.length > 1) toast(`📷 Préparation de la photo ${i + 1}/${imgs.length}…`);
-    try { const im = await prepareAttachment(file); if (list.length >= max) list.shift(); list.push(im); ok++; onDone(); }
+    try {
+      // Petite pause entre deux photos : laisse l'iPhone libérer la mémoire.
+      if (i) await new Promise((r) => setTimeout(r, 120));
+      let im;
+      try { im = await prepareAttachment(file); } catch { await new Promise((r) => setTimeout(r, 600)); im = await prepareAttachment(file); }
+      if (list.length >= max) list.shift();
+      list.push(im); ok++; onDone();
+    }
     catch { toast(`Photo ${i + 1} illisible (format non pris en charge)`, true); }
   }
   if (ok && imgs.length > 1) toast(`📷 ${ok} photo${ok > 1 ? 's' : ''} ajoutée${ok > 1 ? 's' : ''}`);

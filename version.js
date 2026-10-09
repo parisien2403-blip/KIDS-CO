@@ -2,6 +2,10 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '3.1.5', date: '2026-10-09', title: '📱 Photos sur iPhone',
+    items: ['iPhone : on peut ajouter plusieurs photos à la suite (mémoire libérée après chaque photo, nouvel essai automatique)'],
+  },
+  {
     version: '3.1.4', date: '2026-10-09', title: '🔄 Bouton « Mettre à jour »',
     items: ['Bouton 🔄 en haut à droite (à côté de votre photo) : vérifie et installe la dernière version ; une pastille apparaît quand une mise à jour attend'],
   },
