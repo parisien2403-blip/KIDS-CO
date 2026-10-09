@@ -2,7 +2,7 @@
 // Pages et fichiers de l'appli : réseau d'abord (toujours la dernière version), cache si hors ligne.
 // SDK Firebase et polices Google : cache d'abord. Les échanges de données Firebase ne passent pas par ici.
 
-const CACHE_NAME = 'kidsandco-2.8.1'; // suivre le numéro de version.js
+const CACHE_NAME = 'kidsandco-2.9'; // suivre le numéro de version.js
 const CORE_ASSETS = ['./', './index.html', './style.css', './app.js', './config.js', './version.js', './qrcode.js', './manifest.json', './logo.png', './icon-192.png', './favicon.ico'];
 
 self.addEventListener('install', (event) => {

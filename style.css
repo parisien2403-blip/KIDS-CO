@@ -908,3 +908,12 @@ img.avatar{width:42px;height:42px}
 .switch-line.sub{padding:10px 0 10px 18px;border-top:1px dashed var(--line)}
 .lock-card{border-color:var(--sky-line);background:linear-gradient(160deg,var(--sky),var(--surface) 70%)}
 .lock-card .switch-line:first-of-type{border-top:0}
+
+/* ---------- Moins de 13 ans : lecture seule ---------- */
+.young [data-action=new-event],.young [data-action=new-verif],.young [data-action=verif-done],.young [data-action=verif-undo],
+.young [data-action=edit-course],.young [data-action=edt-settings],.young [data-action=open-absence],.young [data-action=end-absence],
+.young [data-action=del-edt-note],.young .note-add,.young [data-action=del-note],.young [data-action=star-note],.young [data-action=clear-done],
+.young [data-action=add-member],.young [data-action=add-maison],.young .tt-tip,.young .edt-dayinfo{display:none !important}
+.young .tt-body,.young .edt-colbody{cursor:default}
+.young .tt-block{pointer-events:none}
+.young .vcheck,.young .check{pointer-events:none;opacity:.6}

@@ -36,6 +36,15 @@ const CATEGORIES = {
 const EMOJIS = ['🦁', '🐼', '🦊', '🐱', '🐶', '🐸', '🦄', '🐙', '🐝', '🦋', '🐢', '🐬', '⭐', '🌈', '⚽', '🎮', '🎨', '🚀', '🎸', '🌸', '🍕', '🧁', '👑', '🏠'];
 const isMaison = (m) => !!m && m.role === 'maison';
 const isParent = (m) => !!m && m.role !== 'enfant' && m.role !== 'maison';
+// Âge et règle des moins de 13 ans : lecture seule partout sauf messages et missions.
+function ageOf(m) {
+  if (!m?.birthDate) return null;
+  const b = parseYmd(m.birthDate), n = new Date();
+  let a = n.getFullYear() - b.getFullYear();
+  if (n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) a--;
+  return a;
+}
+const isYoung = (m) => !!m && !isMaison(m) && ageOf(m) !== null && ageOf(m) < 13;
 const roleLabel = (m) => (isMaison(m) ? 'Maison' : isParent(m) ? 'Parent' : 'Enfant');
 const fullName = (m) => [m.name, m.lastName].filter(Boolean).join(' ');
 // Photos de profil : petites images JPEG (data URL) enregistrées avec le profil.
@@ -669,6 +678,9 @@ function openMemberModal(m, { first = false, role } = {}) {
       <label class="field"><span>Prénom</span><input type="text" name="name" value="${esc(m.name)}" maxlength="30" required></label>
       <label class="field ${r === 'maison' ? 'hidden' : ''}" id="f-lastname"><span>Nom</span><input type="text" name="lastName" value="${esc(m.lastName || '')}" maxlength="40"></label>
     </div>
+    <label class="field ${r === 'maison' ? 'hidden' : ''}" id="f-birth"><span>Date de naissance${meParent ? '' : ' (modifiable par un parent)'}</span>
+      <input type="date" name="birthDate" value="${esc(m.birthDate || '')}" max="${todayStr()}" ${meParent ? '' : 'disabled'}>
+      <small class="muted">Moins de 13 ans : agenda, emploi du temps et pense-bête en lecture seule (messages et missions restent accessibles).</small></label>
     <label class="check-line missions-opt ${r === 'maison' ? 'hidden' : ''}"><input type="checkbox" name="missions" ${(m.missions ?? (isNew && r === 'enfant')) ? 'checked' : ''}>
       🎯 <span><b>Missions</b> <span class="small muted">— onglet ludique : des tâches à cocher chaque jour, des étoiles à gagner</span></span></label>
     <details class="more-opts"><summary>Pas de photo ? Choisir un avatar rigolo</summary>
@@ -723,6 +735,8 @@ async function submitMember(form) {
   }
   const data = { name, lastName, role, color: form.dataset.color, emoji: form.dataset.emoji, createdAt: old?.createdAt || Date.now(),
     missions: role !== 'maison' && !!fd.get('missions') };
+  // Seul un parent fixe la date de naissance.
+  if (first || isParent(state.me)) data.birthDate = role === 'maison' ? '' : String(fd.get('birthDate') || '');
   if (memberPhoto !== undefined) data.photo = memberPhoto || null;
   try {
     if (pinVal) data.pinHash = await hashPin(pinVal, id);
@@ -753,7 +767,9 @@ function cardHtml(m) {
   const since = new Date(m.createdAt || Date.now()).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
   const rows = isMaison(m)
     ? [['Compte', 'Maison'], ['Famille', state.family.name], ['Appareil', 'Tablette de la cuisine'], ['En service depuis', since]]
-    : [['Nom', (m.lastName || '—').toUpperCase()], ['Prénom', m.name], ['Statut', roleLabel(m)], ['Famille', state.family.name], ['Membre depuis', since]];
+    : [['Nom', (m.lastName || '—').toUpperCase()], ['Prénom', m.name],
+      ...(m.birthDate ? [['Né(e) le', `${parseYmd(m.birthDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })} · ${ageOf(m)} ans`]] : []),
+      ['Statut', roleLabel(m)], ['Famille', state.family.name], ...(m.birthDate ? [] : [['Membre depuis', since]])];
   return `<div class="idcard ${isMaison(m) ? 'maison' : ''}" style="--c:${esc(m.color)}">
     <div class="idcard-top"><img src="logo.png" alt=""><div><b>KIDS &amp; CO</b><small>${isMaison(m) ? 'Carte de la maison' : 'Carte de membre'} · Famille &amp; partage</small></div><span class="idcard-chip"></span></div>
     <div class="idcard-body">
@@ -898,6 +914,7 @@ function renderShell() {
 function refresh() {
   const main = $('#main');
   if (!main || !state.me) return;
+  document.body.classList.toggle('young', isYoung(state.me));
   if (state.view === 'missions' && !canSeeMissions()) state.view = 'accueil';
   $('#nav-side').innerHTML = navButtons();
   $('#nav-tab').innerHTML = navButtons(true);
@@ -1785,6 +1802,13 @@ function openEventModal(ev, date, { verify = false } = {}) {
   </form></div>`;
   if (isNew) setTimeout(() => $('#event-form [name=title]')?.focus(), 50);
 }
+// Fiche en lecture seule (moins de 13 ans) : on peut regarder, pas modifier.
+function readOnlyForm(form, label) {
+  if (!form) return;
+  form.querySelectorAll('input,select,textarea,button:not([data-action=close-modal-btn])').forEach((x) => { x.disabled = true; });
+  form.querySelector('h2').textContent = label;
+  form.querySelector('.modal-actions').innerHTML = '<span class="small muted">👀 Lecture seule</span><span class="grow"></span><button type="button" class="btn btn-primary" data-action="close-modal-btn">Fermer</button>';
+}
 const closeModal = () => { $('#modal-root').innerHTML = ''; setTimeout(checkAlerts, 400); };
 
 function submitEvent(form) {
@@ -1915,6 +1939,7 @@ const ACTIONS = {
     form.dataset.role = el.dataset.role;
     form.querySelectorAll('[data-action=member-role]').forEach((b) => b.classList.toggle('on', b === el));
     $('#f-lastname').classList.toggle('hidden', el.dataset.role === 'maison');
+    $('#f-birth').classList.toggle('hidden', el.dataset.role === 'maison');
     form.querySelector('.maison-hint').classList.toggle('hidden', el.dataset.role !== 'maison');
     if (el.dataset.role === 'maison' && !form.name.value) form.name.value = 'Maison';
     form.querySelector('.missions-opt').classList.toggle('hidden', el.dataset.role === 'maison');
@@ -1966,7 +1991,12 @@ const ACTIONS = {
   'verif-filter'(el) { state.verifFilter = el.dataset.v; refresh(); },
   'verif-done'(el) { setDone(el.dataset.id, el.dataset.occ, { by: state.me.id, at: Date.now() }); toast('✅ Validé — tout le monde le voit'); },
   'verif-undo'(el) { if (confirm('Retirer le tampon VALIDÉ ?')) setDone(el.dataset.id, el.dataset.occ, null); },
-  'edit-event': (el) => { const ev = state.events.find((x) => x.id === el.dataset.id); if (ev) openEventModal(ev); },
+  'edit-event': (el) => {
+    const ev = state.events.find((x) => x.id === el.dataset.id);
+    if (!ev) return;
+    openEventModal(ev);
+    if (isYoung(state.me)) readOnlyForm($('#event-form'), 'Rendez-vous');
+  },
   'close-modal': (el, e) => { if (e.target === el && !$('#member-form[data-first="1"]') && !cardDone) { pin = null; closeModal(); } },
   'toggle-who': (el) => el.classList.toggle('on'),
   'pick-imp'(el) {
@@ -1991,7 +2021,7 @@ const ACTIONS = {
   },
   'edt-day'(el) { state.edtDay = Number(el.dataset.i); refresh(); },
   'edt-settings': () => openEdtSettings(),
-  'open-course'(el) { openCourse(el.dataset.id, el.dataset.date); },
+  'open-course'(el) { openCourse(el.dataset.id, el.dataset.date); if (isYoung(state.me)) $('#edt-note-form')?.remove(); },
   'edt-mode'(el) { state.edtMode = el.dataset.m; refresh(); },
   'edt-ab'(el) { state.edtAB = el.dataset.w; refresh(); },
   'edit-course'(el) {
@@ -2086,9 +2116,16 @@ const ACTIONS = {
   'push-test'() { notify([state.me.id], { title: '🔔 Test Kids & Co', body: 'Les notifications fonctionnent sur cet appareil 🎉', tag: 'test' }, { includeSelf: true }); toast('Notification de test envoyée…'); },
 };
 
+// Actions interdites aux moins de 13 ans (agenda, à vérifier, emploi du temps, pense-bête, famille).
+const YOUNG_BLOCKED = new Set(['new-event', 'delete-event', 'new-verif', 'verif-done', 'verif-undo', 'edit-course', 'edt-slot', 'open-absence', 'end-absence',
+  'del-edt-note', 'edt-settings', 'toggle-note', 'star-note', 'del-note', 'clear-done', 'toggle-imp', 'add-member', 'add-maison', 'add-member-start', 'delete-member']);
+const YOUNG_FORMS = new Set(['event-form', 'note-form', 'course-form', 'edt-note-form', 'absence-form', 'edt-settings-form']);
+const youngNo = () => toast('🔒 Réservé aux plus de 13 ans — demande à un parent 😉');
 document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-action]');
   if (!el || el.tagName === 'SELECT') return;
+  if (isYoung(state.me) && YOUNG_BLOCKED.has(el.dataset.action)) { e.preventDefault(); return youngNo(); }
+  if (isYoung(state.me) && el.dataset.action === 'edit-member' && el.dataset.id !== state.me.id) { e.preventDefault(); return youngNo(); }
   const fn = ACTIONS[el.dataset.action];
   if (fn) { if (el.tagName === 'BUTTON' && el.type !== 'submit') e.preventDefault(); fn(el, e); }
 });
@@ -2124,6 +2161,7 @@ document.addEventListener('change', async (e) => {
 document.addEventListener('submit', async (e) => {
   const f = e.target;
   e.preventDefault();
+  if (isYoung(state.me) && YOUNG_FORMS.has(f.id)) return youngNo();
   if (f.id === 'welcome-form') { submitWelcome(false); return; }
   if (f.id === 'login-form') {
     const email = f.email.value.trim(), pw = f.password.value;

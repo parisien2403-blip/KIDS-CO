@@ -2,6 +2,14 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '2.9', date: '2026-10-09', title: 'Date de naissance et règle des moins de 13 ans',
+    items: [
+      'Date de naissance sur la fiche et la carte Kids & Co (avec l’âge), saisie par un parent',
+      'Moins de 13 ans : agenda, À vérifier, emploi du temps et pense-bête en lecture seule',
+      'Ils gardent les messages (lire, écrire, répondre) et leurs missions',
+    ],
+  },
+  {
     version: '2.8.1', date: '2026-10-09', title: 'Réglage du verrouillage plus visible',
     items: ['Nouvelle carte « 🔒 Code et empreinte » en haut de Réglages, sous votre carte Kids & Co'],
   },
