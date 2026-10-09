@@ -2,6 +2,15 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '3.0', date: '2026-10-09', title: '📸 Album photo, 🗳️ sondages et 📍 « Bien arrivé »',
+    items: [
+      'Album photo de la famille : ajout de photos, ❤️, légendes, diaporama ; l’écran Maison lance le diaporama après 5 min sans activité',
+      'Sondages dans Messages : question + réponses, chacun vote, résultats en direct avec les avatars',
+      'Bouton « 📍 Bien arrivé » : prévient toute la famille (avec la position si on veut) et s’affiche sur la carte du jour',
+      'Téléphone : barre du bas avec « ⋯ Plus » pour les autres onglets',
+    ],
+  },
+  {
     version: '2.9.1', date: '2026-10-09', title: 'Pavé de verrouillage adapté à l’écran',
     items: ['Le pavé du code (avec le 0, l’empreinte et ⌫) tient entièrement sur tous les téléphones'],
   },

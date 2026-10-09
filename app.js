@@ -73,6 +73,8 @@ const ICON = {
   cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg>',
   chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.6A8 8 0 1 1 21 12z"/></svg>',
   star: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>',
+  photo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="15" rx="3"/><circle cx="12" cy="12.5" r="3.5"/><path d="M8 5l1.5-2h5L16 5"/></svg>',
+  more: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>',
   target: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg>',
   verif: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
   book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V5a2 2 0 0 1 2-2h13v16H6.5A2.5 2.5 0 0 0 4 21.5v-2"/><path d="M8 7h7M8 11h5"/></svg>',
@@ -116,9 +118,12 @@ function makeDemoBackend() {
     async add(col, data) { write(col, [...read(col), { id: newCode() + Date.now().toString(36), ...data }]); },
     async set(col, id, data) {
       const arr = read(col); const i = arr.findIndex((x) => x.id === id);
-      if (i >= 0) arr[i] = { ...arr[i], ...data }; else arr.push({ id, ...data });
+      // Comme Firestore (merge) : les sous-objets sont fusionnés, pas remplacés.
+      const merge = (a, b) => { const o = { ...a }; for (const [k, v] of Object.entries(b)) o[k] = v && typeof v === 'object' && !Array.isArray(v) && a?.[k] && typeof a[k] === 'object' ? merge(a[k], v) : v; return o; };
+      if (i >= 0) arr[i] = merge(arr[i], data); else arr.push({ id, ...data });
       write(col, arr);
     },
+    async get(col, id) { return read(col).find((x) => x.id === id) || null; },
     async update(col, id, data) { write(col, read(col).map((x) => (x.id === id ? { ...x, ...data } : x))); },
     async arrayAdd(col, id, field, value) {
       write(col, read(col).map((x) => (x.id === id && !(x[field] || []).includes(value) ? { ...x, [field]: [...(x[field] || []), value] } : x)));
@@ -170,6 +175,7 @@ async function makeCloudBackend(cfg) {
     },
     add: (c, data) => F.addDoc(col(c), data),
     set: (c, id, data) => F.setDoc(ref(c, id), data, { merge: true }),
+    async get(c, id) { const d = await F.getDoc(ref(c, id)); return d.exists() ? { id: d.id, ...d.data() } : null; },
     update: (c, id, data) => F.updateDoc(ref(c, id), data),
     arrayAdd: (c, id, field, value) => F.updateDoc(ref(c, id), { [field]: F.arrayUnion(value) }),
     remove: (c, id) => F.deleteDoc(ref(c, id)),
@@ -183,7 +189,7 @@ const save = (p) => Promise.resolve(p).catch((e) => { console.error(e); toast('E
 /* ================= État ================= */
 const state = {
   user: null, me: null, family: null,
-  members: [], events: [], messages: [], notes: [], cours: [], edtNotes: [], edtConfig: {}, absences: [], presence: [], missions: [], push: [],
+  members: [], events: [], messages: [], notes: [], cours: [], edtNotes: [], edtConfig: {}, absences: [], presence: [], missions: [], push: [], photos: [], polls: [],
   view: 'accueil',
   month: (() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); })(),
   selected: todayStr(),
@@ -253,8 +259,14 @@ function miniCard(m, { action = 'show-card' } = {}) {
     <span class="mini-top"><img src="logo.png" alt=""><b>KIDS &amp; CO</b><span class="status-dot" title="${pr.online ? 'En ligne' : 'Hors ligne'}"></span></span>
     <span class="mini-body"><span class="idcard-photo${faceClass(m)}" style="--c:${esc(m.color)}">${faceText(m)}</span>
       <span class="mini-info"><b>${esc(isMaison(m) ? 'Maison' : fullName(m))}</b><small>${roleLabel(m)}</small>
-        <span class="mini-status">${esc(presenceText(pr))}</span></span></span>
+        <span class="mini-status">${esc(presenceText(pr))}</span>${placeOf(m.id) ? `<span class="mini-place">${esc(placeOf(m.id))}</span>` : ''}</span></span>
   </button>`;
+}
+// Dernier « Bien arrivé » du jour (affiché sur la mini carte).
+function placeOf(memberId) {
+  const t = todayStr();
+  const best = state.presence.filter((p) => p.memberId === memberId && p.placeAt && ymd(new Date(p.placeAt)) === t).sort((a, b) => b.placeAt - a.placeAt)[0];
+  return best ? `📍 ${best.place} · ${fmtTime(best.placeAt)}` : '';
 }
 function presenceStrip() {
   if (!state.members.length) return '';
@@ -836,6 +848,8 @@ async function enter(user) {
     backend.subscribe('presence', onPresence),
     backend.subscribe('missions', onMissions),
     backend.subscribe('push', (list) => { state.push = list; }),
+    backend.subscribe('photos', (list) => { state.photos = list.sort((a, b) => b.ts - a.ts); refresh(); }, { limit: 300 }),
+    backend.subscribe('polls', onPolls),
   );
 }
 
@@ -886,15 +900,33 @@ function onMessages(list) {
 const NAV = [
   ['accueil', 'Accueil', 'home'], ['agenda', 'Agenda', 'cal'], ['verif', 'À vérifier', 'verif', 'Vérifier'],
   ['missions', 'Missions', 'target'], ['edt', 'Emploi du temps', 'book', 'Lycée'], ['messages', 'Messages', 'chat'],
-  ['important', 'Pense-bête', 'star', 'Notes', true], ['reglages', 'Réglages', 'gear'],
+  ['album', 'Album photo', 'photo', 'Album'], ['important', 'Pense-bête', 'star', 'Notes'], ['reglages', 'Réglages', 'gear'],
 ];
+const navBadges = () => ({ messages: unreadCount() + pollsToVote().length, verif: verifItems().filter((i) => !i.done).length, missions: missionsLeftToday() });
+const navItems = () => NAV.filter((n) => n[0] !== 'missions' || canSeeMissions());
+function navBtn([id, label, icon, s], short, badges) {
+  return `<button class="nav-btn ${state.view === id ? 'active' : ''}" data-action="nav" data-view="${id}">
+    ${ICON[icon]}<span>${short && s ? s : label}</span>${badges[id] ? `<span class="badge">${badges[id]}</span>` : ''}</button>`;
+}
+// Barre du bas du téléphone : 4 onglets principaux + « Plus » pour le reste.
+function shortNav() {
+  const all = navItems(), first = ['accueil', 'agenda', 'messages', state.me?.missions ? 'missions' : 'verif'];
+  const main = first.map((id) => all.find((n) => n[0] === id)).filter(Boolean), rest = all.filter((n) => !main.includes(n));
+  return { main, rest };
+}
 function navButtons(short = false) {
-  const badges = { messages: unreadCount(), verif: verifItems().filter((i) => !i.done).length, missions: missionsLeftToday() };
-  let items = NAV.filter((n) => n[0] !== 'missions' || canSeeMissions()).filter((n) => !(short && n[4]));
-  // Barre du bas du téléphone : 6 onglets maximum (Réglages reste accessible via la photo en haut à droite).
-  if (short && items.length > 6) items = items.filter((n) => n[0] !== 'reglages');
-  return items.map(([id, label, icon, s]) => `<button class="nav-btn ${state.view === id ? 'active' : ''}" data-action="nav" data-view="${id}">
-    ${ICON[icon]}<span>${short && s ? s : label}</span>${badges[id] ? `<span class="badge">${badges[id]}</span>` : ''}</button>`).join('');
+  const badges = navBadges();
+  if (!short) return navItems().map((n) => navBtn(n, false, badges)).join('');
+  const { main, rest } = shortNav(), restBadge = rest.reduce((t, n) => t + (badges[n[0]] || 0), 0);
+  return main.map((n) => navBtn(n, true, badges)).join('')
+    + `<button class="nav-btn ${rest.some((n) => n[0] === state.view) ? 'active' : ''}" data-action="nav-more">${ICON.more}<span>Plus</span>${restBadge ? `<span class="badge">${restBadge}</span>` : ''}</button>`;
+}
+function openNavMore() {
+  const badges = navBadges(), { rest } = shortNav();
+  $('#modal-root').innerHTML = `<div class="modal-backdrop" data-action="close-modal"><div class="modal more-sheet">
+    <div class="more-grid">${rest.map(([id, label, icon]) => `<button class="more-item ${state.view === id ? 'on' : ''}" data-action="nav-from-more" data-view="${id}">
+      ${ICON[icon]}<span>${label}</span>${badges[id] ? `<span class="badge">${badges[id]}</span>` : ''}</button>`).join('')}</div>
+  </div></div>`;
 }
 function renderShell() {
   $('#app').innerHTML = `<div class="shell">
@@ -966,6 +998,7 @@ const VIEWS = {
           <button class="btn btn-primary" data-action="new-event" data-date="${t}">${ICON.plus} Rendez-vous</button>
           <button class="btn" data-action="nav" data-view="important">${ICON.star} Pense-bête</button>
           <button class="btn" data-action="compose">${ICON.chat} Message</button>
+          <button class="btn btn-arrive" data-action="arrive">📍 Bien arrivé</button>
         </div></div>
       ${presenceStrip()}
       <div class="dash-grid">
@@ -976,7 +1009,9 @@ const VIEWS = {
         <section class="card tint-mint"><div class="card-head"><h2>À venir</h2><button class="btn btn-sm" data-action="nav" data-view="agenda">Agenda</button></div>
           ${upcoming.map((d) => `<div class="day-group"><h3>${d === ymd(addDays(now, 1)) ? 'Demain' : esc(fmtLong(parseYmd(d)))}</h3>
             <div class="list">${map[d].map((ev) => evItem(ev)).join('')}</div></div>`).join('') || '<div class="empty">Rien dans les 2 prochaines semaines.</div>'}</section>
+        ${pollsDashboardCard()}
         ${missionsDashboardCard()}
+        ${albumDashboardCard()}
         ${edtDashboardCard()}
         <section class="card tint-sky"><div class="card-head"><h2>Ma boîte de réception${unread ? ` <span class="badge" style="margin-left:6px">${unread}</span>` : ''}</h2><button class="btn btn-sm" data-action="nav" data-view="messages">Tout voir</button></div>
           <div class="list">${myMail.map((m) => mailItem(m, 'in', true)).join('') || '<div class="empty">Aucun message pour vous.</div>'}</div></section>
@@ -1018,15 +1053,15 @@ const VIEWS = {
 
   messages() {
     const box = state.box || 'in';
+    if (box === 'polls') return messagesHead() + pollsView();
     const list = box === 'out' ? outbox() : inbox();
     const n = unreadCount();
-    return `<div class="view-head"><div><div class="eyebrow">Messagerie de ${esc(state.me.name)}</div><h1>Messages</h1></div>
-        <button class="btn btn-primary" data-action="compose">${ICON.plus} Écrire</button></div>
-      <div class="seg box-tabs"><button class="${box === 'in' ? 'on' : ''}" data-action="box" data-box="in">📥 Boîte de réception${n ? ` <span class="badge">${n}</span>` : ''}</button>
-        <button class="${box === 'out' ? 'on' : ''}" data-action="box" data-box="out">📤 Boîte d’envoi</button></div>
+    return `${messagesHead()}
       <div class="list mail-list">${list.map((m) => mailItem(m, box)).join('')
         || `<div class="empty">${box === 'out' ? 'Vous n’avez encore envoyé aucun message.' : 'Aucun message reçu pour l’instant.'}</div>`}</div>`;
   },
+
+  album() { return albumView(); },
 
   missions() {
     const kids = missionKids();
@@ -1237,7 +1272,7 @@ function openMail(m) {
     <div class="mail-head">${avatar(from)}<div><b>${esc(fullName(from))}</b>
       <div class="small muted">À : ${esc(toLabel(m))} · ${new Date(m.ts).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</div></div></div>
     ${m.subject ? `<h2 class="mail-title">${esc(m.subject)}</h2>` : ''}
-    <div class="mail-text">${esc(m.text)}</div>
+    <div class="mail-text">${esc(m.text).replace(/https:\/\/maps\.google\.com\/\?q=[0-9.,-]+/g, (u) => `<a href="${u}" target="_blank" rel="noopener">Voir sur la carte</a>`)}</div>
     <div class="modal-actions"><button class="btn btn-danger" data-action="hide-mail">${ICON.trash} Supprimer</button><span class="grow"></span>
       ${mine ? '' : `<button class="btn" data-action="reply" data-all="">Répondre</button>`}
       ${!mine && others.length > 1 ? `<button class="btn" data-action="reply" data-all="1">Répondre à tous</button>` : ''}
@@ -1916,6 +1951,31 @@ const ACTIONS = {
   'card-done'() { const done = cardDone; cardDone = null; closeModal(); if (done) done(); else if (!state.me && state.membersLoaded) renderWho(); },
   'remove-photo'() { memberPhoto = null; $('#photo-preview').style.backgroundImage = ''; updatePhotoPreview(); },
   compose: () => openCompose(),
+  'nav-more': () => openNavMore(),
+  'box-polls'() { state.box = 'polls'; go('messages'); },
+  'nav-from-more'(el) { closeModal(); go(el.dataset.view); },
+  arrive: () => openArrive(),
+  'arrive-place'(el) {
+    const f = el.closest('form'); f.dataset.place = el.dataset.place;
+    f.querySelectorAll('[data-action=arrive-place]').forEach((b) => b.classList.toggle('on', b === el));
+    f.querySelector('.arrive-other').classList.toggle('hidden', el.dataset.place !== 'autre');
+  },
+  'open-photo'(el) { openPhoto(el.dataset.id); },
+  'photo-nav'(el) { openPhoto(el.dataset.id); },
+  'photo-like'(el) { likePhoto(el.dataset.id); },
+  'photo-del'(el) { deletePhoto(el.dataset.id); },
+  slideshow: () => startSlideshow(),
+  'new-poll': () => openNewPoll(),
+  'poll-vote'(el) { votePoll(el.dataset.id, el.dataset.opt); },
+  'poll-close'(el) { const pl = state.polls.find((x) => x.id === el.dataset.id); if (pl) save(backend.update('polls', pl.id, { closed: !pl.closed })); },
+  'poll-del'(el) { if (confirm('Supprimer ce sondage ?')) save(backend.remove('polls', el.dataset.id)); },
+  'poll-add-opt'() { const box = $('#poll-opts'); if (box.children.length >= 8) return; box.insertAdjacentHTML('beforeend', pollOptLine('')); box.lastElementChild.querySelector('input').focus(); },
+  'poll-del-opt'(el) { if ($('#poll-opts').children.length > 2) el.closest('.task-line').remove(); },
+  'poll-template'(el) {
+    const [q, ...opts] = el.dataset.t.split('|');
+    const f = $('#poll-form'); f.question.value = q;
+    $('#poll-opts').innerHTML = opts.map(pollOptLine).join('');
+  },
   box(el) { state.box = el.dataset.box; refresh(); },
   'open-mail'(el) { const m = state.messages.find((x) => x.id === el.dataset.id); if (m) openMail(m); },
   'hide-mail'() {
@@ -2117,7 +2177,7 @@ const ACTIONS = {
 };
 
 // Actions interdites aux moins de 13 ans (agenda, à vérifier, emploi du temps, pense-bête, famille).
-const YOUNG_BLOCKED = new Set(['new-event', 'delete-event', 'new-verif', 'verif-done', 'verif-undo', 'edit-course', 'edt-slot', 'open-absence', 'end-absence',
+const YOUNG_BLOCKED = new Set(['photo-del', 'new-event', 'delete-event', 'new-verif', 'verif-done', 'verif-undo', 'edit-course', 'edt-slot', 'open-absence', 'end-absence',
   'del-edt-note', 'edt-settings', 'toggle-note', 'star-note', 'del-note', 'clear-done', 'toggle-imp', 'add-member', 'add-maison', 'add-member-start', 'delete-member']);
 const YOUNG_FORMS = new Set(['event-form', 'note-form', 'course-form', 'edt-note-form', 'absence-form', 'edt-settings-form']);
 const youngNo = () => toast('🔒 Réservé aux plus de 13 ans — demande à un parent 😉');
@@ -2132,6 +2192,7 @@ document.addEventListener('click', (e) => {
 
 document.addEventListener('change', async (e) => {
   const t = e.target;
+  if (t.id === 'album-upload' && t.files?.length) { uploadPhotos([...t.files]); t.value = ''; return; }
   if (t.id === 'photo-input' && t.files && t.files[0]) {
     try { memberPhoto = await readPhoto(t.files[0]); updatePhotoPreview(); }
     catch { toast('Impossible de lire cette photo, essayez-en une autre.', true); }
@@ -2171,6 +2232,9 @@ document.addEventListener('submit', async (e) => {
   } else if (f.id === 'setup-form') submitSetup(f);
   else if (f.id === 'event-form') submitEvent(f);
   else if (f.id === 'compose-form') submitCompose(f);
+  else if (f.id === 'arrive-form') submitArrive(f);
+  else if (f.id === 'poll-form') submitPoll(f);
+  else if (f.id === 'caption-form') { const id = f.dataset.id, c = f.caption.value.trim(); save(backend.update('photos', id, { caption: c })); toast('Légende enregistrée'); }
   else if (f.id === 'forgot-form') submitForgot(f);
   else if (f.id === 'missions-form') {
     const tasks = [...new Set([...f.querySelectorAll('#task-edit input')].map((i) => i.value.trim()).filter(Boolean))];
@@ -2224,7 +2288,7 @@ async function applyTablet() {
   } else if (!on && wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
   resetIdle();
 }
-let maisonTimer = null;
+let maisonTimer = null, slideTimer = null;
 function resetIdle() {
   clearTimeout(idleTimer); clearTimeout(maisonTimer);
   if (ls.get('maison-tablet') !== '1') return;
@@ -2236,6 +2300,9 @@ function resetIdle() {
   idleTimer = setTimeout(() => {
     if (state.view !== 'accueil' && !$('#modal-root').innerHTML && $('#main')) go('accueil');
   }, 120000);
+  // Tablette / PC Maison : après 5 min sans activité, l'album passe en diaporama.
+  clearTimeout(slideTimer);
+  if (isMaison(state.me) && state.photos.length) slideTimer = setTimeout(() => { if (!$('#modal-root').innerHTML && !locked) startSlideshow(true); }, 300000);
 }
 ['pointerdown', 'keydown'].forEach((ev) => addEventListener(ev, resetIdle, { passive: true }));
 
@@ -2458,6 +2525,252 @@ async function downloadQr() {
   g.fillText('Scannez pour ouvrir l’appli', 400, 880);
   const a = document.createElement('a');
   a.href = c.toDataURL('image/png'); a.download = 'kids-and-co-qr.png'; a.click();
+}
+
+/* ================= 📸 Album photo familial ================= */
+// Chaque photo : une miniature (liste, rapide) dans « photos » et la grande image dans « photoFull » (chargée à l'ouverture).
+function resizeImage(file, max, quality) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Image illisible')); };
+    img.src = url;
+  });
+}
+async function uploadPhotos(files) {
+  const imgs = files.filter((f) => f.type.startsWith('image/')).slice(0, 20);
+  if (!imgs.length) return;
+  toast(`📸 Envoi de ${imgs.length} photo${imgs.length > 1 ? 's' : ''}…`);
+  let n = 0;
+  for (const file of imgs) {
+    try {
+      const thumb = await resizeImage(file, 420, 0.72);
+      let full = await resizeImage(file, 1600, 0.8);
+      if (full.length > 900000) full = await resizeImage(file, 1200, 0.7); // limite d'un document Firestore
+      const id = 'p' + newCode().toLowerCase() + Date.now().toString(36);
+      await save(backend.set('photoFull', id, { data: full }));
+      await save(backend.set('photos', id, { thumb, author: state.me.id, ts: Date.now() + n, caption: '', likes: [] }));
+      n++;
+    } catch (e) { console.error(e); }
+  }
+  if (n) {
+    toast(`✅ ${n} photo${n > 1 ? 's' : ''} ajoutée${n > 1 ? 's' : ''} à l’album`);
+    notify('all', { title: `📸 ${state.me.name} a ajouté ${n} photo${n > 1 ? 's' : ''}`, body: 'Venez voir l’album de la famille !', tag: 'album', view: 'album' });
+  }
+}
+function albumView() {
+  const ph = state.photos, young = isYoung(state.me);
+  const groups = {};
+  ph.forEach((p) => { const k = new Date(p.ts).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }); (groups[k] ||= []).push(p); });
+  return `<div class="view-head"><div><div class="eyebrow">Nos souvenirs</div><h1>📸 Album photo</h1></div>
+      <div class="quick">${ph.length ? '<button class="btn" data-action="slideshow">▶ Diaporama</button>' : ''}
+        ${young ? '' : `<label class="btn btn-primary">${ICON.plus} Ajouter des photos<input type="file" id="album-upload" accept="image/*" multiple hidden></label>`}</div></div>
+    ${ph.length ? Object.entries(groups).map(([k, list]) => `<div class="section-title"><span>${esc(cap(k))}</span><span>${list.length} photo${list.length > 1 ? 's' : ''}</span></div>
+      <div class="album-grid">${list.map((p) => `<button class="album-item" data-action="open-photo" data-id="${esc(p.id)}">
+        <img src="${esc(p.thumb)}" alt="${esc(p.caption || 'Photo')}" loading="lazy">${(p.likes || []).length ? `<span class="album-likes">❤️ ${(p.likes || []).length}</span>` : ''}</button>`).join('')}</div>`).join('')
+      : `<div class="card tint-sky album-empty"><h2>L’album est vide 📷</h2><p class="muted">Ajoutez vos plus belles photos de famille : elles apparaissent chez tout le monde,
+        et l’écran de la Maison les fait défiler en diaporama quand personne ne s’en sert.</p></div>`}`;
+}
+function albumDashboardCard() {
+  if (!state.photos.length) return '';
+  return `<section class="card tint-sky"><div class="card-head"><h2>📸 Derniers souvenirs</h2><button class="btn btn-sm" data-action="nav" data-view="album">Album</button></div>
+    <div class="album-strip">${state.photos.slice(0, 6).map((p) => `<button class="album-item" data-action="open-photo" data-id="${esc(p.id)}"><img src="${esc(p.thumb)}" alt="" loading="lazy"></button>`).join('')}</div></section>`;
+}
+const fullCache = new Map();
+async function fullImage(id) {
+  if (fullCache.has(id)) return fullCache.get(id);
+  try { const d = await backend.get('photoFull', id); if (d?.data) { fullCache.set(id, d.data); return d.data; } } catch {}
+  return null;
+}
+async function openPhoto(id) {
+  const i = state.photos.findIndex((x) => x.id === id), p = state.photos[i];
+  if (!p) return;
+  const prev = state.photos[i - 1], next = state.photos[i + 1], a = member(p.author), liked = (p.likes || []).includes(state.me.id);
+  const canDel = !isYoung(state.me) && (p.author === state.me.id || isParent(state.me));
+  $('#modal-root').innerHTML = `<div class="modal-backdrop photo-backdrop" data-action="close-modal"><div class="modal photo-modal" data-id="${esc(p.id)}">
+    <div class="photo-stage">${prev ? `<button class="photo-arrow left" data-action="photo-nav" data-id="${esc(prev.id)}" aria-label="Précédente">${ICON.left}</button>` : ''}
+      <img id="photo-big" src="${esc(p.thumb)}" alt="">
+      ${next ? `<button class="photo-arrow right" data-action="photo-nav" data-id="${esc(next.id)}" aria-label="Suivante">${ICON.right}</button>` : ''}</div>
+    <div class="photo-info">${avatar(a)}<div style="flex:1;min-width:0"><b>${esc(a.name)}</b><div class="small muted">${new Date(p.ts).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div></div>
+      <button class="btn btn-sm ${liked ? 'liked' : ''}" data-action="photo-like" data-id="${esc(p.id)}">${liked ? '❤️' : '🤍'} ${(p.likes || []).length || ''}</button>
+      ${canDel ? `<button class="btn btn-sm btn-danger" data-action="photo-del" data-id="${esc(p.id)}">${ICON.trash}</button>` : ''}
+      <button class="btn btn-sm btn-primary" data-action="close-modal-btn">Fermer</button></div>
+    ${p.author === state.me.id && !isYoung(state.me) ? `<form id="caption-form" class="caption-form" data-id="${esc(p.id)}"><input type="text" name="caption" maxlength="140" value="${esc(p.caption || '')}" placeholder="Ajouter une légende…"><button class="btn btn-sm">OK</button></form>`
+      : p.caption ? `<p class="photo-caption">${esc(p.caption)}</p>` : ''}
+  </div></div>`;
+  const full = await fullImage(p.id);
+  const img = $('#photo-big');
+  if (full && img && $('.photo-modal')?.dataset.id === p.id) img.src = full;
+}
+function likePhoto(id) {
+  const p = state.photos.find((x) => x.id === id);
+  if (!p) return;
+  const likes = new Set(p.likes || []);
+  if (likes.has(state.me.id)) likes.delete(state.me.id); else likes.add(state.me.id);
+  p.likes = [...likes];
+  save(backend.update('photos', id, { likes: p.likes }));
+  openPhoto(id);
+}
+function deletePhoto(id) {
+  if (!confirm('Supprimer cette photo de l’album ?')) return;
+  save(backend.remove('photos', id)); save(backend.remove('photoFull', id));
+  closeModal(); toast('Photo supprimée');
+}
+let slideIdx = 0, slideLoop = null;
+async function startSlideshow(auto = false) {
+  if (!state.photos.length || document.getElementById('slideshow')) return;
+  closeModal();
+  const el = document.createElement('div');
+  el.id = 'slideshow';
+  el.innerHTML = `<div class="ss-img a"></div><div class="ss-img b"></div>
+    <div class="ss-overlay"><div class="ss-clock" id="ss-clock"></div><div class="ss-caption" id="ss-caption"></div></div>
+    <div class="ss-hint">${auto ? 'Touchez l’écran pour revenir' : 'Touchez pour fermer'}</div>`;
+  document.body.append(el);
+  el.addEventListener('pointerdown', stopSlideshow);
+  addEventListener('keydown', stopSlideshow, { once: true });
+  slideIdx = 0;
+  const show = async () => {
+    const list = state.photos;
+    if (!list.length || !document.getElementById('slideshow')) return;
+    const p = list[slideIdx % list.length]; slideIdx++;
+    const src = (await fullImage(p.id)) || p.thumb;
+    const layers = el.querySelectorAll('.ss-img'), on = el.querySelector('.ss-img.on'), nxt = on === layers[0] ? layers[1] : layers[0];
+    nxt.style.backgroundImage = `url("${src}")`;
+    nxt.classList.add('on'); on?.classList.remove('on');
+    const now = new Date();
+    $('#ss-clock').innerHTML = `${clockHtml(now)}<small>${esc(now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }))}</small>`;
+    $('#ss-caption').textContent = [p.caption, `📸 ${member(p.author).name} · ${new Date(p.ts).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}`].filter(Boolean).join(' — ');
+  };
+  await show();
+  slideLoop = setInterval(show, 8000);
+}
+function stopSlideshow() {
+  clearInterval(slideLoop);
+  document.getElementById('slideshow')?.remove();
+  resetIdle();
+}
+
+/* ================= 🗳️ Sondages famille ================= */
+function messagesHead() {
+  const box = state.box || 'in', n = unreadCount(), pv = pollsToVote().length;
+  return `<div class="view-head"><div><div class="eyebrow">Messagerie de ${esc(state.me.name)}</div><h1>Messages</h1></div>
+      <div class="quick"><button class="btn btn-arrive" data-action="arrive">📍 Bien arrivé</button>
+        ${box === 'polls' ? `<button class="btn btn-primary" data-action="new-poll">${ICON.plus} Sondage</button>` : `<button class="btn btn-primary" data-action="compose">${ICON.plus} Écrire</button>`}</div></div>
+    <div class="seg box-tabs"><button class="${box === 'in' ? 'on' : ''}" data-action="box" data-box="in">📥 Reçus${n ? ` <span class="badge">${n}</span>` : ''}</button>
+      <button class="${box === 'out' ? 'on' : ''}" data-action="box" data-box="out">📤 Envoyés</button>
+      <button class="${box === 'polls' ? 'on' : ''}" data-action="box" data-box="polls">🗳️ Sondages${pv ? ` <span class="badge">${pv}</span>` : ''}</button></div>`;
+}
+const pollsToVote = () => (state.me ? state.polls.filter((p) => !p.closed && !(p.votes || {})[state.me.id]) : []);
+let pollsBefore = null;
+function onPolls(list) {
+  const ids = new Set(list.map((p) => p.id));
+  if (pollsBefore && state.me) for (const p of list) if (!pollsBefore.has(p.id) && p.author !== state.me.id) toast(`🗳️ Nouveau sondage de ${member(p.author).name} : ${p.question}`);
+  pollsBefore = ids;
+  state.polls = list.sort((a, b) => (a.closed ? 1 : 0) - (b.closed ? 1 : 0) || b.ts - a.ts);
+  refresh();
+}
+function pollCard(p, compact = false) {
+  const votes = p.votes || {}, total = Object.keys(votes).length, mine = votes[state.me.id], a = member(p.author);
+  const canManage = p.author === state.me.id || isParent(state.me);
+  const counts = Object.fromEntries(p.options.map((o) => [o.id, Object.values(votes).filter((v) => v === o.id).length]));
+  const max = Math.max(0, ...Object.values(counts));
+  return `<div class="poll ${p.closed ? 'closed' : ''}">
+    <div class="poll-head">${avatar(a)}<div style="flex:1;min-width:0"><b class="poll-q">${esc(p.question)}</b>
+      <div class="small muted">${esc(a.name)} · ${fmtWhen(p.ts)} · ${total} vote${total > 1 ? 's' : ''}${p.closed ? ' · 🔒 Terminé' : ''}</div></div></div>
+    <div class="poll-opts">${p.options.map((o) => {
+      const c = counts[o.id], pct = total ? Math.round((c / total) * 100) : 0, voters = Object.entries(votes).filter(([, v]) => v === o.id).map(([m]) => member(m));
+      return `<button class="poll-opt ${mine === o.id ? 'mine' : ''} ${p.closed && c === max && c > 0 ? 'win' : ''}" data-action="poll-vote" data-id="${esc(p.id)}" data-opt="${esc(o.id)}" ${p.closed ? 'disabled' : ''}>
+        <span class="poll-bar" style="width:${mine || p.closed ? pct : 0}%"></span>
+        <span class="poll-txt">${mine === o.id ? '✓ ' : ''}${esc(o.text)}</span>
+        ${mine || p.closed ? `<span class="poll-pct">${voters.length ? `<span class="avatars">${voters.map(avatar).join('')}</span>` : ''} ${pct}%</span>` : ''}</button>`;
+    }).join('')}</div>
+    ${!compact && canManage ? `<div class="poll-actions"><button class="btn btn-sm" data-action="poll-close" data-id="${esc(p.id)}">${p.closed ? 'Rouvrir' : '🔒 Clôturer'}</button>
+      <button class="btn btn-sm btn-danger" data-action="poll-del" data-id="${esc(p.id)}">${ICON.trash}</button></div>` : ''}
+  </div>`;
+}
+function pollsView() {
+  return `<div class="list polls-list">${state.polls.map((p) => pollCard(p)).join('')
+    || '<div class="card empty-verif"><h2>Aucun sondage 🗳️</h2><p class="muted">« Pizza ou burger ce soir ? », « Où partir en vacances ? »… Créez un sondage, toute la famille vote !</p></div>'}</div>`;
+}
+function pollsDashboardCard() {
+  const open = state.polls.filter((p) => !p.closed).slice(0, 2);
+  if (!open.length) return '';
+  return `<section class="card tint-lilac"><div class="card-head"><h2>🗳️ Sondage${open.length > 1 ? 's' : ''} en cours</h2>
+      <button class="btn btn-sm" data-action="box-polls">Tout voir</button></div>
+    <div class="list">${open.map((p) => pollCard(p, true)).join('')}</div></section>`;
+}
+function votePoll(id, opt) {
+  const p = state.polls.find((x) => x.id === id);
+  if (!p || p.closed) return;
+  p.votes = { ...(p.votes || {}), [state.me.id]: opt };
+  save(backend.set('polls', id, { votes: { [state.me.id]: opt } }));
+  refresh();
+}
+const pollOptLine = (v) => `<div class="task-line"><input type="text" maxlength="60" value="${esc(v)}" placeholder="Réponse possible"><button type="button" class="del" data-action="poll-del-opt" aria-label="Retirer">${ICON.trash}</button></div>`;
+function openNewPoll() {
+  const T = ['Qu’est-ce qu’on mange ce soir ?|🍕 Pizza|🍔 Burger|🍝 Pâtes|🥗 Salade', 'Quel film ce soir ?|Film d’animation|Comédie|Aventure',
+    'Sortie du week-end ?|🌳 Parc|🏊 Piscine|🎳 Bowling|🏠 On reste à la maison', 'Où partir en vacances ?|🏖️ Mer|🏔️ Montagne|🏕️ Camping|🏙️ Ville'];
+  $('#modal-root').innerHTML = `<div class="modal-backdrop" data-action="close-modal"><form class="modal" id="poll-form">
+    <h2 style="margin-bottom:12px">🗳️ Nouveau sondage</h2>
+    <div class="field"><span>Idées</span><div class="who">${T.map((t) => `<button type="button" class="who-chip" style="--c:#9B7BE0" data-action="poll-template" data-t="${esc(t)}">${esc(t.split('|')[0])}</button>`).join('')}</div></div>
+    <label class="field"><span>Question</span><input type="text" name="question" maxlength="120" required placeholder="Ex. Pizza ou burger ce soir ?"></label>
+    <div class="field"><span>Réponses possibles</span><div class="task-edit" id="poll-opts">${pollOptLine('')}${pollOptLine('')}</div>
+      <button type="button" class="btn btn-sm" data-action="poll-add-opt" style="margin-top:8px;align-self:flex-start">${ICON.plus} Ajouter une réponse</button></div>
+    <div class="error"></div>
+    <div class="modal-actions"><span class="grow"></span><button type="button" class="btn" data-action="close-modal-btn">Annuler</button><button class="btn btn-primary">Lancer le sondage</button></div>
+  </form></div>`;
+  setTimeout(() => $('#poll-form [name=question]')?.focus(), 50);
+}
+function submitPoll(f) {
+  const question = f.question.value.trim();
+  const opts = [...new Set([...f.querySelectorAll('#poll-opts input')].map((i) => i.value.trim()).filter(Boolean))];
+  if (!question) return;
+  if (opts.length < 2) { f.querySelector('.error').textContent = 'Il faut au moins 2 réponses possibles.'; return; }
+  save(backend.add('polls', { question, options: opts.map((t, i) => ({ id: 'o' + i, text: t })), votes: {}, author: state.me.id, ts: Date.now(), closed: false }));
+  closeModal();
+  toast('🗳️ Sondage lancé — toute la famille peut voter');
+  notify('all', { title: `🗳️ Sondage de ${state.me.name}`, body: question, tag: 'poll', view: 'messages' });
+}
+
+/* ================= 📍 Je suis bien arrivé ================= */
+const PLACES = [['ecole', '🏫 À l’école'], ['maison', '🏠 À la maison'], ['sport', '⚽ Au sport'], ['papi', '👵 Chez Papi & Mamie'],
+  ['copain', '🧑‍🤝‍🧑 Chez un copain'], ['travail', '💼 Au travail'], ['autre', '✏️ Autre…']];
+function openArrive() {
+  $('#modal-root').innerHTML = `<div class="modal-backdrop" data-action="close-modal"><form class="modal" id="arrive-form" data-place="ecole">
+    <h2 style="margin-bottom:6px">📍 Je suis bien arrivé(e)</h2>
+    <p class="muted small" style="margin:0 0 14px">Toute la famille est prévenue tout de suite.</p>
+    <div class="who arrive-places">${PLACES.map(([k, l], i) => `<button type="button" class="who-chip ${i === 0 ? 'on' : ''}" style="--c:#3FB0A4" data-action="arrive-place" data-place="${k}">${l}</button>`).join('')}</div>
+    <label class="field arrive-other hidden" style="margin-top:12px"><span>Où ça ?</span><input type="text" name="other" maxlength="60" placeholder="Ex. chez Léa, au cinéma…"></label>
+    <label class="check-line" style="margin-top:14px"><input type="checkbox" name="geo"> Joindre ma position (carte)</label>
+    <div class="error"></div>
+    <div class="modal-actions"><span class="grow"></span><button type="button" class="btn" data-action="close-modal-btn">Annuler</button><button class="btn btn-primary">📍 Prévenir la famille</button></div>
+  </form></div>`;
+}
+async function submitArrive(f) {
+  const k = f.dataset.place, label = k === 'autre' ? (f.other.value.trim() ? (/^(à|au|chez|en|dans)\b/i.test(f.other.value.trim()) ? f.other.value.trim() : 'à ' + f.other.value.trim()) : '') : PLACES.find((p) => p[0] === k)[1].replace(/^\S+\s/, '');
+  if (!label) { f.querySelector('.error').textContent = 'Indiquez où vous êtes.'; return; }
+  const btn = f.querySelector('.btn-primary'); btn.disabled = true;
+  let map = '';
+  if (f.geo.checked && navigator.geolocation) {
+    try {
+      const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true, timeout: 10000 }));
+      map = `https://maps.google.com/?q=${pos.coords.latitude.toFixed(5)},${pos.coords.longitude.toFixed(5)}`;
+    } catch { toast('Position indisponible, message envoyé sans la carte.'); }
+  }
+  const time = fmtTime(Date.now()), short = label.replace(/^(à la |à l’|à l'|à |au |en )/i, '');
+  const text = `📍 ${state.me.name} est bien arrivé(e) ${label} à ${time}.${map ? `\n🗺️ ${map}` : ''}`;
+  save(backend.add('messages', { from: state.me.id, to: null, subject: '📍 Bien arrivé', text, kind: 'arrive', ts: Date.now(), readBy: [state.me.id] }));
+  save(backend.set('presence', deviceId, { memberId: state.me.id, place: cap(short), placeAt: Date.now() }));
+  notify('all', { title: `📍 ${state.me.name} est bien arrivé(e)`, body: `${cap(label)} à ${time}`, tag: 'arrive-' + state.me.id, view: 'messages' });
+  closeModal();
+  toast('📍 La famille est prévenue !');
 }
 
 /* ================= Notifications push (même appli fermée) ================= */

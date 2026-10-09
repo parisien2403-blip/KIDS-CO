@@ -111,3 +111,8 @@ Cloudflare → *Workers et Pages* → **kids-co** → *Paramètres* → *Variabl
 nom **`VAPID_PRIVATE_KEY`**, valeur : la clé privée fournie à la mise en place (ne jamais la publier sur GitHub).
 
 Ensuite, sur chaque appareil : *Réglages → Notifications → Activer* (sur iPhone : appli installée sur l'écran d'accueil, iOS 16.4+), puis « 🔔 Tester ».
+
+### 📸 Album, 🗳️ sondages, 📍 « Bien arrivé »
+- **Album photo** (onglet Album, ou « ⋯ Plus » sur téléphone) : ajout de photos (allégées automatiquement), ❤️, légendes, diaporama. L'écran **Maison** lance le diaporama tout seul après 5 minutes sans activité.
+- **Sondages** : Messages → 🗳️ Sondages → « + Sondage ». Chacun vote, les résultats s'affichent en direct.
+- **📍 Bien arrivé** : un bouton sur l'accueil et dans Messages prévient toute la famille (position facultative) ; le lieu s'affiche sur la carte de la personne pour la journée.
