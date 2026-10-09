@@ -1881,6 +1881,7 @@ async function submitEvent(form) {
     askNotifications();
   } else data.alert = null;
   const id = form.dataset.id;
+  if (form.__busy) { toast('📷 Un instant, photo en préparation…'); await form.__busy; }
   data.images = await saveAttachments(form.__att || []);
   (form.__old || []).filter((x) => !data.images.some((im) => im.id === x)).forEach((x) => save(backend.remove('attachments', x)));
   if (id) save(backend.update('events', id, data));
@@ -2236,14 +2237,17 @@ document.addEventListener('change', async (e) => {
   const t = e.target;
   if (t.id === 'album-upload' && t.files?.length) { uploadPhotos([...t.files]); t.value = ''; return; }
   if (t.classList.contains('att-input') && t.files?.length) {
-    const f = t.closest('form'), max = f.dataset.single ? 1 : 4;
-    for (const file of [...t.files]) { if (f.__att.length >= max) f.__att.shift(); f.__att.push(await prepareAttachment(file)); }
-    t.value = ''; renderAttach(f); return;
+    const f = t.closest('form'), files = [...t.files];
+    t.value = '';
+    f.__busy = addAttachments(files, f.__att, f.dataset.single ? 1 : 4, () => renderAttach(f)).finally(() => { f.__busy = null; });
+    return;
   }
   if (t.classList.contains('note-att-input') && t.files?.length) {
     state.noteAtt = state.noteAtt || [];
-    for (const file of [...t.files].slice(0, 4)) state.noteAtt.push(await prepareAttachment(file));
-    t.value = ''; refresh(); return;
+    const files = [...t.files];
+    t.value = '';
+    state.noteBusy = addAttachments(files, state.noteAtt, 4, refresh).finally(() => { state.noteBusy = null; });
+    return;
   }
   if (t.id === 'photo-input' && t.files && t.files[0]) {
     try { memberPhoto = await readPhoto(t.files[0]); updatePhotoPreview(); }
@@ -2312,6 +2316,7 @@ document.addEventListener('submit', async (e) => {
   }
   else if (f.id === 'note-form') {
     const input = $('#note-input'), text = input.value.trim();
+    if (state.noteBusy) { toast('📷 Un instant, photo en préparation…'); await state.noteBusy; }
     if (!text && !state.noteAtt?.length) return;
     input.value = '';
     const images = await saveAttachments(state.noteAtt || []);
@@ -2600,16 +2605,48 @@ async function downloadQr() {
 
 /* ================= 📎 Images jointes (notes, rendez-vous, envies) ================= */
 // Miniature dans le document (affichage rapide) + grande image à part dans « attachments ».
-async function prepareAttachment(file) {
-  const thumb = await resizeImage(file, 320, 0.7);
-  let full = await resizeImage(file, 1600, 0.82);
-  if (full.length > 900000) full = await resizeImage(file, 1200, 0.72);
-  return { id: 'a' + newCode().toLowerCase() + Date.now().toString(36), thumb, full };
+// Une seule lecture de la photo (rapide et légère en mémoire sur téléphone), puis grande image + miniature.
+function prepareAttachment(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    // Dessine une image (ou un canvas) de taille w × h dans un canvas d'au plus « max » pixels de côté.
+    const draw = (src, w, h, max) => {
+      const k = Math.min(1, max / Math.max(w, h));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
+      c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+      return c;
+    };
+    img.onload = () => {
+      try {
+        const big = draw(img, img.naturalWidth, img.naturalHeight, 1280);
+        let full = big.toDataURL('image/jpeg', 0.75);
+        if (full.length > 700000) full = big.toDataURL('image/jpeg', 0.55);
+        const thumb = draw(big, big.width, big.height, 320).toDataURL('image/jpeg', 0.7);
+        URL.revokeObjectURL(url);
+        resolve({ id: 'a' + newCode().toLowerCase() + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), thumb, full });
+      } catch (e) { URL.revokeObjectURL(url); reject(e); }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Image illisible')); };
+    img.src = url;
+  });
 }
+// Ajoute plusieurs photos l'une après l'autre, avec un message de progression ; une photo illisible n'arrête pas les autres.
+async function addAttachments(files, list, max, onDone) {
+  const imgs = [...files].filter((f) => !f.type || f.type.startsWith('image/')).slice(0, max);
+  let ok = 0;
+  for (const [i, file] of imgs.entries()) {
+    if (imgs.length > 1) toast(`📷 Préparation de la photo ${i + 1}/${imgs.length}…`);
+    try { const im = await prepareAttachment(file); if (list.length >= max) list.shift(); list.push(im); ok++; onDone(); }
+    catch { toast(`Photo ${i + 1} illisible (format non pris en charge)`, true); }
+  }
+  if (ok && imgs.length > 1) toast(`📷 ${ok} photo${ok > 1 ? 's' : ''} ajoutée${ok > 1 ? 's' : ''}`);
+}
+// Enregistre les grandes images sans attendre le serveur (elles partent en arrière-plan, même hors connexion).
 async function saveAttachments(list) {
   const out = [];
   for (const im of list) {
-    if (im.full) await save(backend.set('attachments', im.id, { data: im.full }));
+    if (im.full) save(backend.set('attachments', im.id, { data: im.full }));
     out.push({ id: im.id, thumb: im.thumb });
   }
   return out;
@@ -2681,6 +2718,7 @@ async function submitWish(f) {
   if (!title) return;
   let link = f.link.value.trim();
   if (link && !/^https?:\/\//i.test(link)) link = 'https://' + link;
+  if (f.__busy) { toast('📷 Un instant, photo en préparation…'); await f.__busy; }
   const [image] = await saveAttachments(f.__att || []);
   (f.__old || []).filter((x) => x !== image?.id).forEach((x) => save(backend.remove('attachments', x)));
   const data = { title, link, price: f.price.value.trim(), note: f.note.value.trim(), prio: f.prio.checked, image: image || null };
@@ -2783,16 +2821,16 @@ async function uploadPhotos(files) {
   if (!imgs.length) return;
   toast(`📸 Envoi de ${imgs.length} photo${imgs.length > 1 ? 's' : ''}…`);
   let n = 0;
-  for (const file of imgs) {
+  for (const [i, file] of imgs.entries()) {
     try {
-      const thumb = await resizeImage(file, 420, 0.72);
-      let full = await resizeImage(file, 1600, 0.8);
-      if (full.length > 900000) full = await resizeImage(file, 1200, 0.7); // limite d'un document Firestore
+      if (imgs.length > 1) toast(`📸 Photo ${i + 1}/${imgs.length}…`);
+      const { thumb, full } = await prepareAttachment(file); // une seule lecture de la photo
       const id = 'p' + newCode().toLowerCase() + Date.now().toString(36);
-      await save(backend.set('photoFull', id, { data: full }));
-      await save(backend.set('photos', id, { thumb, author: state.me.id, ts: Date.now() + n, caption: '', likes: [] }));
+      // Sans attendre le serveur : les envois partent en arrière-plan.
+      save(backend.set('photoFull', id, { data: full }));
+      save(backend.set('photos', id, { thumb, author: state.me.id, ts: Date.now() + n, caption: '', likes: [] }));
       n++;
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error(e); toast(`Photo ${i + 1} illisible (format non pris en charge)`, true); }
   }
   if (n) {
     toast(`✅ ${n} photo${n > 1 ? 's' : ''} ajoutée${n > 1 ? 's' : ''} à l’album`);

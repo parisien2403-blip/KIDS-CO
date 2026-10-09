@@ -2,6 +2,10 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '3.1.3', date: '2026-10-09', title: '📷 Ajout de plusieurs photos corrigé',
+    items: ['Plusieurs photos d’un coup dans un rendez-vous, une note ou l’album : plus de blocage, progression « photo 2/4… »', 'Photos plus légères, enregistrement instantané (l’envoi continue en arrière-plan)'],
+  },
+  {
     version: '3.1.2', date: '2026-10-09', title: '🔄 Mises à jour automatiques',
     items: ['L’appli se met à jour toute seule à l’ouverture dès qu’une nouvelle version est publiée', 'Le numéro de version s’affiche en haut, à côté du logo (touchez-le pour voir les nouveautés)'],
   },
