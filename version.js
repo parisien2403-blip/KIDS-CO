@@ -2,6 +2,10 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '3.1.1', date: '2026-10-09', title: '🔄 Mises à jour automatiques',
+    items: ['L’appli se met à jour toute seule à l’ouverture dès qu’une nouvelle version est publiée'],
+  },
+  {
     version: '3.1', date: '2026-10-09', title: '🎁 Listes d’envies, 🏖️ vacances scolaires et 📷 images',
     items: [
       'Listes d’envies : photo, lien, prix ; les autres réservent « Je l’offre », la personne ne voit rien 🤫',

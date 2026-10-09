@@ -2,13 +2,15 @@
 // Pages et fichiers de l'appli : réseau d'abord (toujours la dernière version), cache si hors ligne.
 // SDK Firebase et polices Google : cache d'abord. Les échanges de données Firebase ne passent pas par ici.
 
-const CACHE_NAME = 'kidsandco-3.1'; // suivre le numéro de version.js
+const CACHE_NAME = 'kidsandco-3.1.1'; // suivre le numéro de version.js
 const CORE_ASSETS = ['./', './index.html', './style.css', './app.js', './config.js', './version.js', './qrcode.js', './manifest.json', './logo.png', './icon-192.png', './favicon.ico'];
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(caches.open(CACHE_NAME).then((c) => c.addAll(CORE_ASSETS)).catch(() => {}));
 });
+
+self.addEventListener('message', (e) => { if (e.data === 'skip-waiting') self.skipWaiting(); });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
@@ -38,8 +40,10 @@ self.addEventListener('fetch', (event) => {
 
   if (url.origin !== self.location.origin) return;
 
+  // « no-cache » : on redemande toujours au serveur si le fichier a changé (jamais de vieille version en mémoire).
+  const fresh = req.mode === 'navigate' ? fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' }) : fetch(req, { cache: 'no-cache' });
   event.respondWith(
-    fetch(req)
+    fresh
       .then((res) => {
         const copy = res.clone();
         caches.open(CACHE_NAME).then((c) => c.put(req, copy));

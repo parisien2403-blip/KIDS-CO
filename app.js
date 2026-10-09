@@ -2466,7 +2466,10 @@ async function checkUpdate(manual = false) {
   try {
     const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
     const { version } = await r.json();
+    if (version === APP_VERSION && location.search.includes('v=')) history.replaceState(null, '', location.pathname + location.hash);
     if (version && version !== APP_VERSION) {
+      // Mise à jour automatique (une seule tentative par version, pour ne jamais boucler).
+      if (ls.get('kc-auto-update') !== version) { ls.set('kc-auto-update', version); return doUpdate(version); }
       if (!updateShown) {
         updateShown = true;
         const bar = document.createElement('div');
@@ -2479,10 +2482,20 @@ async function checkUpdate(manual = false) {
 }
 setInterval(checkUpdate, 10 * 60000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) checkUpdate(); });
-async function doUpdate() {
-  try { const reg = await navigator.serviceWorker?.getRegistration(); await reg?.update(); } catch {}
-  location.reload();
+async function doUpdate(version) {
+  toast('✨ Mise à jour de Kids & Co…');
+  try { for (const k of await caches.keys()) await caches.delete(k); } catch {}
+  try {
+    const reg = await navigator.serviceWorker?.getRegistration();
+    if (reg) {
+      await reg.update();
+      reg.waiting?.postMessage('skip-waiting');
+      await new Promise((ok) => { navigator.serviceWorker.addEventListener('controllerchange', ok, { once: true }); setTimeout(ok, 2500); });
+    }
+  } catch {}
+  location.replace(location.pathname + '?v=' + encodeURIComponent(version || Date.now()) + location.hash);
 }
+setTimeout(checkUpdate, 1500); // dès l'ouverture
 
 /* ================= Code secret oublié ================= */
 // On prouve qu'on est de la famille avec l'e-mail et le mot de passe du compte famille, puis on choisit un nouveau code.
