@@ -2,6 +2,10 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '2.8.1', date: '2026-10-09', title: 'Réglage du verrouillage plus visible',
+    items: ['Nouvelle carte « 🔒 Code et empreinte » en haut de Réglages, sous votre carte Kids & Co'],
+  },
+  {
     version: '2.8', date: '2026-10-09', title: '🔒 Verrouillage par code ou empreinte',
     items: [
       'Réglages → « Verrouiller quand je quitte l’appli » : au retour, code secret ou empreinte / Face ID',

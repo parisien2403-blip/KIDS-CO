@@ -1160,6 +1160,7 @@ const VIEWS = {
           <div class="small muted" style="margin-top:10px">${state.me.pinHash ? '🔒 Protégé par un code secret' : 'Sans code secret'}</div>
           <div class="quick" style="margin-top:12px"><button class="btn btn-primary btn-sm" data-action="edit-member" data-id="${esc(state.me.id)}">Modifier mon compte</button>
             <button class="btn btn-sm" data-action="switch-user">Changer d’utilisateur</button></div></section>
+        ${lockCard()}
         <section class="card"><h2 style="margin-bottom:10px">La famille</h2>
           ${state.members.map((m) => `<div class="member-line"><button class="member-open" data-action="show-card" data-id="${esc(m.id)}">${avatar(m)}<div><b>${esc(fullName(m))}</b>${m.id === state.me.id ? ' <span class="muted small">(vous)</span>' : ''}
               <div class="small muted">${roleLabel(m)}${m.pinHash ? ' · 🔒' : ''} · voir la carte</div></div></button>
@@ -1183,7 +1184,6 @@ const VIEWS = {
             <button class="btn btn-sm ${tablet ? 'btn-primary' : ''}" data-action="toggle-tablet">${tablet ? 'Activé' : 'Activer'}</button></div>
           <div class="switch-line"><div><b>Demander « Qui est là ? » à chaque ouverture</b><div class="small muted">Conseillé sur la tablette de la cuisine.</div></div>
             <button class="btn btn-sm ${ls.get('kc-ask') === '1' ? 'btn-primary' : ''}" data-action="toggle-ask">${ls.get('kc-ask') === '1' ? 'Activé' : 'Activer'}</button></div>
-          ${lockSettings()}
           <div class="switch-line"><b>Thème</b><select data-action="theme">
             ${[['auto', 'Automatique'], ['light', 'Clair'], ['dark', 'Sombre']].map(([v, l]) => `<option value="${v}" ${theme === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
           <div class="switch-line"><div><b>Notifications</b><div class="small muted">Messages, agenda, validations, étoiles, lycée… même quand l’appli est fermée.</div></div>
@@ -2507,6 +2507,11 @@ document.addEventListener('visibilitychange', () => {
   } else if (!locked && hiddenAt && Date.now() - hiddenAt >= (c.delay || 0) * 1000) showLock();
 });
 
+function lockCard() {
+  if (!state.me || isMaison(state.me)) return '';
+  return `<section class="card lock-card"><h2 style="margin-bottom:4px">🔒 Code et empreinte</h2>
+    <p class="muted small" style="margin:0 0 6px">Protège l’appli sur ce téléphone quand vous la quittez.</p>${lockSettings()}</section>`;
+}
 function lockSettings() {
   if (!state.me || isMaison(state.me)) return '';
   const c = lockCfg(), canPin = !!state.me.pinHash;

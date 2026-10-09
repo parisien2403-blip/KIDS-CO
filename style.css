@@ -906,3 +906,5 @@ img.avatar{width:42px;height:42px}
 .lock-box .key.ghost{background:none;border-color:transparent}
 .lock-box .key.bio{font-size:30px}
 .switch-line.sub{padding:10px 0 10px 18px;border-top:1px dashed var(--line)}
+.lock-card{border-color:var(--sky-line);background:linear-gradient(160deg,var(--sky),var(--surface) 70%)}
+.lock-card .switch-line:first-of-type{border-top:0}
