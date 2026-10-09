@@ -937,7 +937,7 @@ function renderShell() {
       <div id="nav-side"></div>
       <div class="me-card" id="me-card"></div>
       <button class="app-version" data-action="whats-new">Version ${APP_VERSION} · Nouveautés</button></nav>
-    <header class="topbar"><img src="logo.png" alt=""><div><span class="brand-name">Kids &amp; Co</span><small id="fam-name-top">${esc(state.family.name)}</small></div>
+    <header class="topbar"><img src="logo.png" alt=""><div><span class="brand-name">Kids &amp; Co <button class="ver-badge" data-action="whats-new" title="Nouveautés">v${APP_VERSION}</button></span><small id="fam-name-top">${esc(state.family.name)}</small></div>
       <button class="me-btn" data-action="nav" data-view="reglages" aria-label="Mon compte et réglages" id="me-btn"></button></header>
     <main id="main"></main>
     <nav class="tabbar" id="nav-tab"></nav>

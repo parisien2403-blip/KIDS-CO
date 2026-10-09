@@ -1037,3 +1037,4 @@ img.avatar{width:42px;height:42px}
 .wish-actions{padding:0 14px 14px}
 .wish-actions .btn{width:100%}
 .wish-res{display:block;text-align:center;font-weight:700;color:var(--text2);padding:8px}
+.ver-badge{display:inline-block;vertical-align:middle;margin-left:6px;font:700 11px/1 var(--sans,inherit);letter-spacing:.02em;padding:4px 8px;border-radius:999px;border:0;background:rgba(255,255,255,.75);color:var(--accent,#244a6e);cursor:pointer}
