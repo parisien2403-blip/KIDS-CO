@@ -1525,3 +1525,23 @@ img.avatar{width:42px;height:42px}
 .games-grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
 /* Lisibilité des titres et petits textes posés sur les fonds décorés des thèmes */
 :root[data-season]:not([data-season='']) #main > .view-head,:root[data-season]:not([data-season='']) .note-panel{background:rgba(255,251,242,.92);border-radius:18px;padding:12px 14px;box-shadow:0 6px 16px -12px rgba(0,0,0,.35)}
+/* Thèmes de saison = décors clairs : on force les couleurs claires, même si le téléphone est en mode sombre
+   (sinon textes blancs et cartes transparentes sur le fond décoré, illisible). Cartes un peu plus opaques. */
+:root[data-season]:not([data-season='']){
+  --text:#22476B; --text2:#5E7891; --text3:#94A9BC;
+  --surface:rgba(255,255,255,.94); --surface-strong:#FFFFFF; --row:rgba(255,255,255,.9); --line:rgba(34,71,107,.12); --field:#F2F7FB;
+  --danger:#D9534A; --btn:#22476B; --btn-ink:#FFFFFF;
+  --peach:#FFEDE6; --peach-line:#F6B9A4; --mint:#E6F6F1; --mint-line:#A7DCCB;
+  --butter:#FFF5DB; --butter-line:#F3D58C; --sky:#E7F1FC; --sky-line:#B3D2F1;
+  --shadow:0 1px 2px rgba(34,71,107,.05),0 10px 28px -12px rgba(34,71,107,.25);
+  color-scheme:light;
+}
+:root[data-season]:not([data-season='']) .card{background-color:rgba(255,255,255,.95)}
+:root[data-season]:not([data-season='']) .holiday-banner{background:#e3f1fd;color:#1f5d8c;border-color:#cfe6fb}
+:root[data-season]:not([data-season='']) .holiday-banner.on{background:linear-gradient(90deg,#fff3c4,#cfe6fb);color:#5a4a10}
+:root[data-season]:not([data-season='']) .cal-day.vac{background:linear-gradient(180deg,#dceefe 0,#fff 70%)}
+:root[data-season]:not([data-season='']) .vac-tag,:root[data-season]:not([data-season='']) .day-banner.vac{background:#cfe6fb;color:#1f5d8c}
+:root[data-season]:not([data-season='']) .news-banner,:root[data-season]:not([data-season='']) .news-item.new{background:#e4f7ec;border-color:#9fdcb9;color:#17603a}
+:root[data-season]:not([data-season='']) .cal-dow{background:rgba(255,255,255,.88);border-radius:8px;color:#22476B;font-weight:800}
+:root[data-season]:not([data-season='']) .cal-day.out{opacity:.55;background:rgba(255,255,255,.6)}
+:root[data-season]:not([data-season='']) .legend{background:rgba(255,255,255,.9);border-radius:12px;padding:6px 10px}

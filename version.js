@@ -2,6 +2,10 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '4.1.2', date: '2026-10-11', title: '🌗 Lisible en mode sombre',
+    items: ['Téléphones en mode sombre (iPhone…) : les thèmes de saison gardent des textes foncés et des cartes bien opaques, tout est lisible', 'Jours du calendrier et légende plus lisibles sur les fonds décorés'],
+  },
+  {
     version: '4.1.1', date: '2026-10-11', title: '🖼️ Jaquettes réservées aux parents',
     items: ['Seuls les parents peuvent ajouter ou changer la jaquette d’un jeu'],
   },
