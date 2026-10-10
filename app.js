@@ -984,6 +984,7 @@ function seasonBanner() {
   return k === 'noel' ? `<div class="season-chip">${msg}</div>` : '';
 }
 setInterval(applySeason, 3600000);
+try { applySeason(); } catch {} // dès l'écran d'accueil et le verrouillage
 
 function renderShell() {
   applySeason();

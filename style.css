@@ -1417,3 +1417,61 @@ img.avatar{width:42px;height:42px}
 :root[data-season=chandeleur] .tabbar .nav-btn{height:62%;background:transparent}:root[data-season=chandeleur] .tabbar .nav-btn>svg,:root[data-season=chandeleur] .tabbar .nav-btn>span:not(.badge){opacity:0}
 :root[data-season=chandeleur] .tabbar .nav-btn.active{background:radial-gradient(closest-side,rgba(255,255,255,.55),rgba(255,255,255,0));box-shadow:none}}
 :root[data-season]:not([data-season='']) .home-head .hero{padding:6px 4px}
+
+/* 🎨 Thèmes de saison : écran de verrouillage et écran d'accueil (connexion) */
+:root[data-season=noel] .lock-screen,:root[data-season=noel] .auth{background:#F6EEDC url('saisons/noel/bg.webp') repeat;background-size:274px auto}
+:root[data-season=noel] .lock-box,:root[data-season=noel] .auth .card{border:16px solid transparent;border-image:url('saisons/noel/card.webp') 22 stretch;background:#f9f9f9 padding-box;border-radius:0;box-shadow:0 20px 40px -18px rgba(0,0,0,.45)}
+:root[data-season=noel] .lock-box{padding:14px 10px 18px;width:min(360px,100%)}
+:root[data-season=noel] .lock-box h2,:root[data-season=noel] .welcome-head h1{color:#B5541C}
+:root[data-season=noel] .lock-box .key:not(.ghost){background:radial-gradient(circle at 35% 30%,#fff,rgba(255,255,255,.75) 60%,rgba(255,255,255,.55));border:3px solid var(--accent);color:#B5541C;font-weight:900;text-shadow:0 1px 0 rgba(255,255,255,.9);box-shadow:0 6px 12px -8px rgba(0,0,0,.5)}
+:root[data-season=noel] .lock-box .key.ghost{color:#B5541C}
+:root[data-season=noel] .lock-box .pin-dot{border-color:#B5541C}:root[data-season=noel] .lock-box .pin-dot.on,:root[data-season=noel] .lock-box .pin-dot.full{background:#B5541C;border-color:#B5541C}
+:root[data-season=noel] .lock-box .link{color:#B5541C;font-weight:800}
+:root[data-season=halloween] .lock-screen,:root[data-season=halloween] .auth{background:#F6EEDC url('saisons/halloween/bg.webp') repeat;background-size:274px auto}
+:root[data-season=halloween] .lock-box,:root[data-season=halloween] .auth .card{border:16px solid transparent;border-image:url('saisons/halloween/card.webp') 22 stretch;background:#d6c098 padding-box;border-radius:0;box-shadow:0 20px 40px -18px rgba(0,0,0,.45)}
+:root[data-season=halloween] .lock-box{padding:14px 10px 18px;width:min(360px,100%)}
+:root[data-season=halloween] .lock-box h2,:root[data-season=halloween] .welcome-head h1{color:#B5541C}
+:root[data-season=halloween] .lock-box .key:not(.ghost){background:radial-gradient(circle at 35% 30%,#fff,rgba(255,255,255,.75) 60%,rgba(255,255,255,.55));border:3px solid var(--accent);color:#B5541C;font-weight:900;text-shadow:0 1px 0 rgba(255,255,255,.9);box-shadow:0 6px 12px -8px rgba(0,0,0,.5)}
+:root[data-season=halloween] .lock-box .key.ghost{color:#B5541C}
+:root[data-season=halloween] .lock-box .pin-dot{border-color:#B5541C}:root[data-season=halloween] .lock-box .pin-dot.on,:root[data-season=halloween] .lock-box .pin-dot.full{background:#B5541C;border-color:#B5541C}
+:root[data-season=halloween] .lock-box .link{color:#B5541C;font-weight:800}
+:root[data-season=ete] .lock-screen,:root[data-season=ete] .auth{background:#F6EEDC url('saisons/ete/bg.webp') repeat;background-size:274px auto}
+:root[data-season=ete] .lock-box,:root[data-season=ete] .auth .card{border:16px solid transparent;border-image:url('saisons/ete/card.webp') 22 stretch;background:#f7f7f7 padding-box;border-radius:0;box-shadow:0 20px 40px -18px rgba(0,0,0,.45)}
+:root[data-season=ete] .lock-box{padding:14px 10px 18px;width:min(360px,100%)}
+:root[data-season=ete] .lock-box h2,:root[data-season=ete] .welcome-head h1{color:#B5541C}
+:root[data-season=ete] .lock-box .key:not(.ghost){background:radial-gradient(circle at 35% 30%,#fff,rgba(255,255,255,.75) 60%,rgba(255,255,255,.55));border:3px solid var(--accent);color:#B5541C;font-weight:900;text-shadow:0 1px 0 rgba(255,255,255,.9);box-shadow:0 6px 12px -8px rgba(0,0,0,.5)}
+:root[data-season=ete] .lock-box .key.ghost{color:#B5541C}
+:root[data-season=ete] .lock-box .pin-dot{border-color:#B5541C}:root[data-season=ete] .lock-box .pin-dot.on,:root[data-season=ete] .lock-box .pin-dot.full{background:#B5541C;border-color:#B5541C}
+:root[data-season=ete] .lock-box .link{color:#B5541C;font-weight:800}
+:root[data-season=hiver] .lock-screen,:root[data-season=hiver] .auth{background:#F6EEDC url('saisons/hiver/bg.webp') repeat;background-size:274px auto}
+:root[data-season=hiver] .lock-box,:root[data-season=hiver] .auth .card{border:16px solid transparent;border-image:url('saisons/hiver/card.webp') 22 stretch;background:#ebd9b9 padding-box;border-radius:0;box-shadow:0 20px 40px -18px rgba(0,0,0,.45)}
+:root[data-season=hiver] .lock-box{padding:14px 10px 18px;width:min(360px,100%)}
+:root[data-season=hiver] .lock-box h2,:root[data-season=hiver] .welcome-head h1{color:#B5541C}
+:root[data-season=hiver] .lock-box .key:not(.ghost){background:radial-gradient(circle at 35% 30%,#fff,rgba(255,255,255,.75) 60%,rgba(255,255,255,.55));border:3px solid var(--accent);color:#B5541C;font-weight:900;text-shadow:0 1px 0 rgba(255,255,255,.9);box-shadow:0 6px 12px -8px rgba(0,0,0,.5)}
+:root[data-season=hiver] .lock-box .key.ghost{color:#B5541C}
+:root[data-season=hiver] .lock-box .pin-dot{border-color:#B5541C}:root[data-season=hiver] .lock-box .pin-dot.on,:root[data-season=hiver] .lock-box .pin-dot.full{background:#B5541C;border-color:#B5541C}
+:root[data-season=hiver] .lock-box .link{color:#B5541C;font-weight:800}
+:root[data-season=automne] .lock-screen,:root[data-season=automne] .auth{background:#F6EEDC url('saisons/automne/bg.webp') repeat;background-size:274px auto}
+:root[data-season=automne] .lock-box,:root[data-season=automne] .auth .card{border:16px solid transparent;border-image:url('saisons/automne/card.webp') 22 stretch;background:#e9d6b3 padding-box;border-radius:0;box-shadow:0 20px 40px -18px rgba(0,0,0,.45)}
+:root[data-season=automne] .lock-box{padding:14px 10px 18px;width:min(360px,100%)}
+:root[data-season=automne] .lock-box h2,:root[data-season=automne] .welcome-head h1{color:#B5541C}
+:root[data-season=automne] .lock-box .key:not(.ghost){background:radial-gradient(circle at 35% 30%,#fff,rgba(255,255,255,.75) 60%,rgba(255,255,255,.55));border:3px solid var(--accent);color:#B5541C;font-weight:900;text-shadow:0 1px 0 rgba(255,255,255,.9);box-shadow:0 6px 12px -8px rgba(0,0,0,.5)}
+:root[data-season=automne] .lock-box .key.ghost{color:#B5541C}
+:root[data-season=automne] .lock-box .pin-dot{border-color:#B5541C}:root[data-season=automne] .lock-box .pin-dot.on,:root[data-season=automne] .lock-box .pin-dot.full{background:#B5541C;border-color:#B5541C}
+:root[data-season=automne] .lock-box .link{color:#B5541C;font-weight:800}
+:root[data-season=printemps] .lock-screen,:root[data-season=printemps] .auth{background:#F6EEDC url('saisons/printemps/bg.webp') repeat;background-size:274px auto}
+:root[data-season=printemps] .lock-box,:root[data-season=printemps] .auth .card{border:16px solid transparent;border-image:url('saisons/printemps/card.webp') 22 stretch;background:#f8f2e6 padding-box;border-radius:0;box-shadow:0 20px 40px -18px rgba(0,0,0,.45)}
+:root[data-season=printemps] .lock-box{padding:14px 10px 18px;width:min(360px,100%)}
+:root[data-season=printemps] .lock-box h2,:root[data-season=printemps] .welcome-head h1{color:#5A7A2A}
+:root[data-season=printemps] .lock-box .key:not(.ghost){background:radial-gradient(circle at 35% 30%,#fff,rgba(255,255,255,.75) 60%,rgba(255,255,255,.55));border:3px solid var(--accent);color:#5A7A2A;font-weight:900;text-shadow:0 1px 0 rgba(255,255,255,.9);box-shadow:0 6px 12px -8px rgba(0,0,0,.5)}
+:root[data-season=printemps] .lock-box .key.ghost{color:#5A7A2A}
+:root[data-season=printemps] .lock-box .pin-dot{border-color:#5A7A2A}:root[data-season=printemps] .lock-box .pin-dot.on,:root[data-season=printemps] .lock-box .pin-dot.full{background:#5A7A2A;border-color:#5A7A2A}
+:root[data-season=printemps] .lock-box .link{color:#5A7A2A;font-weight:800}
+:root[data-season=chandeleur] .lock-screen,:root[data-season=chandeleur] .auth{background:#F6EEDC url('saisons/chandeleur/bg.webp') repeat;background-size:274px auto}
+:root[data-season=chandeleur] .lock-box,:root[data-season=chandeleur] .auth .card{border:16px solid transparent;border-image:url('saisons/chandeleur/card.webp') 22 stretch;background:#f7f0e0 padding-box;border-radius:0;box-shadow:0 20px 40px -18px rgba(0,0,0,.45)}
+:root[data-season=chandeleur] .lock-box{padding:14px 10px 18px;width:min(360px,100%)}
+:root[data-season=chandeleur] .lock-box h2,:root[data-season=chandeleur] .welcome-head h1{color:#B5541C}
+:root[data-season=chandeleur] .lock-box .key:not(.ghost){background:radial-gradient(circle at 35% 30%,#fff,rgba(255,255,255,.75) 60%,rgba(255,255,255,.55));border:3px solid var(--accent);color:#B5541C;font-weight:900;text-shadow:0 1px 0 rgba(255,255,255,.9);box-shadow:0 6px 12px -8px rgba(0,0,0,.5)}
+:root[data-season=chandeleur] .lock-box .key.ghost{color:#B5541C}
+:root[data-season=chandeleur] .lock-box .pin-dot{border-color:#B5541C}:root[data-season=chandeleur] .lock-box .pin-dot.on,:root[data-season=chandeleur] .lock-box .pin-dot.full{background:#B5541C;border-color:#B5541C}
+:root[data-season=chandeleur] .lock-box .link{color:#B5541C;font-weight:800}

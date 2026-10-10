@@ -2,6 +2,10 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '3.9.1', date: '2026-10-11', title: '🔒 Écran de code aux couleurs de la saison',
+    items: ['L’écran de verrouillage (code secret) et l’écran de connexion prennent aussi le thème de la saison'],
+  },
+  {
     version: '3.9', date: '2026-10-11', title: '🎨 Thèmes de saison',
     items: ['L’appli change de décor toute seule : Noël, Halloween, Chandeleur, printemps, été, automne, hiver',
       'Fond, barre du haut, horloge, tableau, gros boutons et barre du bas habillés selon la période',
