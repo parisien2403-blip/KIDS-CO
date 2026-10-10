@@ -135,3 +135,8 @@ Ensuite, sur chaque appareil : *Réglages → Notifications → Activer* (sur iP
 
 ### 🎨 Thèmes de saison
 L'appli change de décor toute seule selon la date : 🎄 Noël (1er déc. → 2 janv.), 🎃 Halloween (20 oct. → 2 nov.), 🥞 Chandeleur (30 janv. → 3 fév.), puis 🌸 printemps, ☀️ été, 🍂 automne et ❄️ hiver. Les images sont dans le dossier `saisons/` (une sous-dossier par thème). Pour essayer un thème : ajouter `?saison=noel` (ou `halloween`, `ete`…) à l'adresse.
+
+### 🎮 Jeux
+- Menu ⋯ → **Jeux**. Un parent (ou un enfant de 13 ans et plus) touche « + Ajouter un jeu » et choisit le fichier (.nes, .sfc, .gb, .gbc, .gba, .md…, 16 Mo max).
+- Le jeu est rangé dans la base Firebase de la famille (mêmes règles de sécurité que le reste : seuls les membres y ont accès), puis disponible sur tous les téléphones. Un toucher sur « Jouer » et il démarre.
+- Émulateur : EmulatorJS (libre), chargé depuis cdn.emulatorjs.org. Les sauvegardes de partie restent sur chaque appareil.

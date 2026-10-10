@@ -75,6 +75,7 @@ const ICON = {
   chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.6A8 8 0 1 1 21 12z"/></svg>',
   star: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>',
   photo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="15" rx="3"/><circle cx="12" cy="12.5" r="3.5"/><path d="M8 5l1.5-2h5L16 5"/></svg>',
+  game: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="11" rx="5"/><path d="M7 11v3M5.5 12.5h3"/><circle cx="15.5" cy="11.5" r=".9" fill="currentColor"/><circle cx="17.8" cy="13.6" r=".9" fill="currentColor"/></svg>',
   gift: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M3 12h18M12 8v13M12 8S10.5 3 7.5 3.5 6 8 12 8zm0 0s1.5-5 4.5-4.5S18 8 12 8z"/></svg>',
   more: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>',
   target: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg>',
@@ -191,7 +192,7 @@ const save = (p) => Promise.resolve(p).catch((e) => { console.error(e); toast('E
 /* ================= État ================= */
 const state = {
   user: null, me: null, family: null,
-  members: [], events: [], messages: [], notes: [], cours: [], edtNotes: [], edtConfig: {}, absences: [], presence: [], missions: [], push: [], photos: [], polls: [], wishes: [], activity: [], stickerImgs: [],
+  members: [], events: [], messages: [], notes: [], cours: [], edtNotes: [], edtConfig: {}, absences: [], presence: [], missions: [], push: [], photos: [], polls: [], wishes: [], activity: [], stickerImgs: [], games: [],
   view: 'accueil',
   month: (() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); })(),
   selected: todayStr(),
@@ -911,6 +912,7 @@ async function enter(user) {
     backend.subscribe('photos', (list) => { state.photos = list.sort((a, b) => b.ts - a.ts); refresh(); }, { limit: 300 }),
     backend.subscribe('polls', onPolls),
     backend.subscribe('activity', (list) => { state.activity = list.sort((a, b) => b.ts - a.ts).slice(0, 80); refresh(); }, { limit: 80 }),
+    backend.subscribe('games', (list) => { state.games = list.sort((a, b) => a.name.localeCompare(b.name, 'fr')); if (state.view === 'jeux') refresh(); }),
     backend.subscribe('stickerImgs', (list) => { state.stickerImgs = list.sort((a, b) => a.ts - b.ts); refresh(); }),
     backend.subscribe('wishes', (list) => { state.wishes = list.sort((a, b) => (b.prio ? 1 : 0) - (a.prio ? 1 : 0) || b.ts - a.ts); refresh(); }),
   );
@@ -963,7 +965,7 @@ function onMessages(list) {
 const NAV = [
   ['accueil', 'Accueil', 'home'], ['agenda', 'Agenda', 'cal'],
   ['missions', 'Missions', 'target'], ['edt', 'Emploi du temps', 'book', 'Lycée'], ['messages', 'Messages', 'chat'],
-  ['album', 'Album photo', 'photo', 'Album'], ['envies', 'Listes d’envies', 'gift', 'Envies'], ['important', 'Pense-bête', 'star', 'Notes'], ['reglages', 'Réglages', 'gear'],
+  ['album', 'Album photo', 'photo', 'Album'], ['envies', 'Listes d’envies', 'gift', 'Envies'], ['jeux', 'Jeux', 'game', 'Jeux'], ['important', 'Pense-bête', 'star', 'Notes'], ['reglages', 'Réglages', 'gear'],
 ];
 const navBadges = () => ({ agenda: calNews().length, messages: unreadCount() + pollsToVote().length, missions: missionsLeftToday() });
 const navItems = () => NAV.filter((n) => n[0] !== 'missions' || canSeeMissions());
@@ -1203,6 +1205,7 @@ const VIEWS = {
 
   album() { return albumView(); },
   envies() { return wishesView(); },
+  jeux() { return gamesView(); },
 
   missions() {
     const kids = missionKids();
@@ -2441,6 +2444,8 @@ const ACTIONS = {
     if (!f) { const m = member($('#member-form')?.dataset.id); if (!hasPhoto(m)) return; f = await (await fetch(m.photo)).blob(); }
     const r = await cropPhoto(f); if (r) { memberPhoto = r; updatePhotoPreview(); }
   },
+  'game-play'(el) { playGame(el.dataset.id); },
+  'game-del'(el) { deleteGame(el.dataset.id); },
   'pick-sticker'(el) { closeModal(); setSticker(el.dataset.kid, el.dataset.date, el.dataset.type); },
   'manage-missions'(el) { openManageMissions(el.dataset.id); },
   'add-task'(el) {
@@ -2618,6 +2623,7 @@ document.addEventListener('change', async (e) => {
     f.__busy = addAttachments(files, f.__att, f.dataset.single ? 1 : 4, () => renderAttach(f)).finally(() => { f.__busy = null; });
     return;
   }
+  if (t.id === 'game-upload' && t.files?.length) { addGames([...t.files]); t.value = ''; return; }
   if (t.classList.contains('sticker-upload') && t.files?.length) {
     const { kid, date, pack } = t.dataset;
     openCutter([...t.files].slice(0, 10), pack, () => openStickerPicker(kid, date, 'own:' + pack));
@@ -3130,6 +3136,119 @@ function weatherFromGeo() {
     const lat = Math.round(p.coords.latitude * 100) / 100, lon = Math.round(p.coords.longitude * 100) / 100;
     setWeatherPlace({ name: 'Ma position', lat, lon });
   }, () => toast('Position refusée — cherchez la ville à la place', true), { timeout: 10000 });
+}
+
+/* ================= 🎮 Jeux (émulateur EmulatorJS) ================= */
+// Les jeux sont rangés dans la base de la FAMILLE (protégée par les règles Firebase : seuls les membres y ont accès),
+// découpés en morceaux de 600 Ko. Chaque téléphone garde ensuite une copie locale (IndexedDB) : le jeu démarre tout de suite.
+// L'émulateur (EmulatorJS, libre) est chargé depuis son site officiel au moment de jouer.
+const EJS_DATA = 'https://cdn.emulatorjs.org/stable/data/';
+const GAME_CHUNK = 600 * 1024, GAME_MAX = 16 * 1024 * 1024;
+const GAME_SYSTEMS = [
+  [['nes', 'fds', 'unf', 'unif'], 'nes', 'NES', '🟥'], [['sfc', 'smc', 'fig', 'swc'], 'snes', 'Super Nintendo', '🟪'],
+  [['gb', 'gbc'], 'gb', 'Game Boy', '🟩'], [['gba'], 'gba', 'Game Boy Advance', '🟦'],
+  [['md', 'gen', 'smd', 'bin'], 'segaMD', 'Mega Drive', '⚫'], [['sms'], 'segaMS', 'Master System', '🔴'],
+  [['gg'], 'segaGG', 'Game Gear', '🟠'], [['pce'], 'pce', 'PC Engine', '🟡'], [['a26'], 'atari2600', 'Atari 2600', '🟤'],
+];
+const systemOf = (name) => { const ext = name.split('.').pop().toLowerCase(); return GAME_SYSTEMS.find(([e]) => e.includes(ext)) || null; };
+// Copie locale des jeux déjà téléchargés sur cet appareil
+function gamesDb(mode, fn) {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('kidsandco-jeux', 1);
+    req.onupgradeneeded = () => req.result.createObjectStore('games', { keyPath: 'id' });
+    req.onerror = () => reject(req.error);
+    req.onsuccess = () => { const db = req.result, tx = db.transaction('games', mode), r = fn(tx.objectStore('games')); tx.oncomplete = () => { resolve(r?.result); db.close(); }; tx.onerror = () => reject(tx.error); };
+  });
+}
+const b64 = { enc: (buf) => { let s = ''; const u = new Uint8Array(buf); for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000)); return btoa(s); },
+  dec: (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0)) };
+const canAddGames = () => !!state.me && !isMaison(state.me) && !isYoung(state.me);
+async function addGames(files) {
+  let n = 0;
+  for (const f of files) {
+    const name = f.name.replace(/\.[^.]+$/, '').replace(/[_]+/g, ' ').replace(/\s*\([^)]*\)|\s*\[[^\]]*\]/g, '').trim() || f.name;
+    let sys = systemOf(f.name);
+    if (!sys && /\.zip$/i.test(f.name)) {
+      const choice = prompt(`« ${name} » est compressé. Quelle console ?\n` + GAME_SYSTEMS.map(([, , l], i) => `${i + 1}. ${l}`).join('\n'), '1');
+      sys = GAME_SYSTEMS[Number(choice) - 1];
+    }
+    if (!sys) { toast(`« ${f.name} » : format de jeu non reconnu`, true); continue; }
+    if (f.size > GAME_MAX) { toast(`« ${name} » est trop gros (${Math.round(f.size / 1048576)} Mo, max 16 Mo)`, true); continue; }
+    const id = 'g' + Date.now().toString(36) + newCode().toLowerCase(), buf = await f.arrayBuffer(), parts = Math.ceil(buf.byteLength / GAME_CHUNK);
+    try {
+      for (let i = 0; i < parts; i++) {
+        toast(`🎮 Envoi de « ${name} » : ${Math.round((i / parts) * 100)} %`);
+        await backend.set('gameChunks', `${id}_${i}`, { game: id, i, data: b64.enc(buf.slice(i * GAME_CHUNK, (i + 1) * GAME_CHUNK)) });
+      }
+      await backend.set('games', id, { name, file: f.name, core: sys[1], system: sys[2], size: buf.byteLength, parts, by: state.me.id, ts: Date.now() });
+      await gamesDb('readwrite', (st) => st.put({ id, data: new Blob([buf]) }));
+      n++;
+    } catch (e) { console.error(e); toast(`Envoi de « ${name} » impossible : ${e.code || e.message}`, true); }
+  }
+  if (n) { toast(`🎮 ${n} jeu${n > 1 ? 'x' : ''} ajouté${n > 1 ? 's' : ''} pour toute la famille`); notify('all', { title: `🎮 Nouveau jeu : ${files.length === 1 ? files[0].name.replace(/\.[^.]+$/, '') : n + ' jeux'}`, body: `Ajouté par ${state.me.name} — Menu › Jeux`, tag: 'jeux', view: 'jeux' }); }
+}
+async function gameBlob(g, onProgress) {
+  const local = await gamesDb('readonly', (st) => st.get(g.id)).catch(() => null);
+  if (local?.data) return local.data;
+  const parts = [];
+  for (let i = 0; i < g.parts; i++) {
+    onProgress?.(i / g.parts);
+    const c = await backend.get('gameChunks', `${g.id}_${i}`);
+    if (!c?.data) throw new Error('morceau manquant');
+    parts.push(b64.dec(c.data));
+  }
+  const blob = new Blob(parts);
+  gamesDb('readwrite', (st) => st.put({ id: g.id, data: blob })).catch(() => {});
+  return blob;
+}
+function gamesView() {
+  const sys = (c) => GAME_SYSTEMS.find((x) => x[1] === c) || [, c, c, '🎮'];
+  return `<div class="view-head"><div><div class="eyebrow">Partagés avec toute la famille 🔒</div><h1>🎮 Jeux</h1></div>
+      ${canAddGames() ? `<label class="btn btn-primary">${ICON.plus} Ajouter un jeu<input type="file" id="game-upload" multiple hidden></label>` : ''}</div>
+    <div class="games-grid">${state.games.map((g) => `<div class="game-card">
+        <button class="game-play" data-action="game-play" data-id="${esc(g.id)}"><span class="game-ico">${sys(g.core)[3]}</span>
+          <b>${esc(g.name)}</b><small>${esc(g.system)}</small><span class="game-go">▶ Jouer</span></button>
+        ${canAddGames() && (isParent(state.me) || g.by === state.me.id) ? `<button class="game-del" data-action="game-del" data-id="${esc(g.id)}" aria-label="Retirer">✕</button>` : ''}</div>`).join('')
+      || `<div class="card empty-verif"><h2>Aucun jeu pour l’instant 🎮</h2><p class="muted">${canAddGames() ? 'Touchez « Ajouter un jeu » et choisissez le fichier du jeu (.nes, .sfc, .gb, .gba, .md…). Il sera disponible sur les téléphones de toute la famille, et seulement pour elle.' : 'Demande à un parent d’ajouter des jeux 😉'}</p></div>`}</div>
+    <p class="small muted note-panel" style="margin-top:14px">Un toucher sur un jeu et il démarre. Tournez le téléphone à l’horizontale pour jouer avec les boutons à l’écran ; une manette Bluetooth marche aussi. Les sauvegardes de partie restent sur chaque téléphone.</p>`;
+}
+async function deleteGame(id) {
+  const g = state.games.find((x) => x.id === id);
+  if (!g || !confirm(`Retirer « ${g.name} » pour toute la famille ?`)) return;
+  for (let i = 0; i < g.parts; i++) save(backend.remove('gameChunks', `${id}_${i}`));
+  save(backend.remove('games', id)); gamesDb('readwrite', (st) => st.delete(id)).catch(() => {});
+  toast('Jeu retiré');
+}
+function playGame(id) {
+  const g = state.games.find((x) => x.id === id);
+  if (!g) return toast('Jeu introuvable', true);
+  const ov = document.createElement('div');
+  ov.className = 'game-overlay';
+  ov.innerHTML = `<div class="game-bar"><b>🎮 ${esc(g.name)}</b><button class="btn btn-sm" data-g="close">✕ Quitter</button></div>
+    <div class="game-loading"><div class="game-spin">🎮</div><b>Chargement de « ${esc(g.name)} »…</b><span class="game-pct"></span></div><iframe allow="fullscreen; gamepad; autoplay" allowfullscreen></iframe>`;
+  document.body.append(ov);
+  // Plein écran + paysage dès le toucher (le navigateur ne l'autorise qu'à ce moment-là)
+  ov.requestFullscreen?.().then(() => screen.orientation?.lock?.('landscape')).catch(() => {});
+  let url = null;
+  const close = () => { ov.remove(); if (url) URL.revokeObjectURL(url); if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); try { screen.orientation?.unlock?.(); } catch {} };
+  ov.addEventListener('click', (e) => { if (e.target.closest('[data-g=close]') && confirm('Quitter le jeu ? (pensez à sauvegarder dans le menu du jeu)')) close(); });
+  gameBlob(g, (x) => { const el = ov.querySelector('.game-pct'); if (el) el.textContent = `Téléchargement ${Math.round(x * 100)} % (la première fois seulement)`; })
+    .then((blob) => {
+      url = URL.createObjectURL(blob);
+      const cfg = { core: g.core, url, name: g.name.replace(/[^\w\- ]/g, '') || 'jeu', data: EJS_DATA };
+      const fr = ov.querySelector('iframe');
+      fr.onload = () => setTimeout(() => ov.querySelector('.game-loading')?.remove(), 800);
+      fr.srcdoc = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;height:100%;background:#000}#game{width:100%;height:100%}</style></head>
+        <body><div id="game"></div><script>
+        const c = ${JSON.stringify(cfg)};
+        window.EJS_player = '#game'; window.EJS_core = c.core; window.EJS_gameUrl = c.url; window.EJS_gameName = c.name;
+        window.EJS_pathtodata = c.data; window.EJS_startOnLoaded = true; window.EJS_language = 'fr-FR'; window.EJS_color = '#3FB0A4';
+        const s = document.createElement('script'); s.src = c.data + 'loader.js';
+        s.onerror = () => { document.body.innerHTML = '<p style="color:#fff;font:16px sans-serif;padding:24px;text-align:center">Impossible de charger l’émulateur : vérifiez la connexion Internet.</p>'; };
+        document.body.append(s);
+        <\/script></body></html>`;
+    })
+    .catch((e) => { console.error(e); close(); toast('Impossible de charger ce jeu (connexion ?)', true); });
 }
 
 /* ================= 🆕 Du nouveau dans le calendrier ================= */
