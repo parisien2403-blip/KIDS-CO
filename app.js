@@ -2446,6 +2446,8 @@ const ACTIONS = {
   },
   'game-play'(el) { playGame(el.dataset.id); },
   'game-del'(el) { deleteGame(el.dataset.id); },
+  async 'game-add'() { const fs = await pickFiles({ multiple: true }); if (fs.length) addGames(fs); },
+  async 'album-add'() { const fs = await pickFiles({ accept: 'image/*', multiple: true }); if (fs.length) uploadPhotos(fs); },
   'game-up-close'() { gameUp = null; refresh(); },
   'pick-sticker'(el) { closeModal(); setSticker(el.dataset.kid, el.dataset.date, el.dataset.type); },
   'manage-missions'(el) { openManageMissions(el.dataset.id); },
@@ -3164,6 +3166,18 @@ function gamesDb(mode, fn) {
 const b64 = { enc: (buf) => { let s = ''; const u = new Uint8Array(buf); for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000)); return btoa(s); },
   dec: (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0)) };
 const canAddGames = () => !!state.me && !isMaison(state.me) && !isYoung(state.me);
+// Sélecteur de fichiers « hors page » : l'écran se redessine souvent (messages, présence…) ;
+// un champ fichier placé dans la page pouvait être remplacé pendant que le téléphone affichait ses dossiers,
+// et le fichier choisi était alors perdu. Ce champ-ci reste en place.
+function pickFiles({ accept = '', multiple = false } = {}) {
+  return new Promise((resolve) => {
+    document.getElementById('kc-picker')?.remove();
+    const inp = document.createElement('input');
+    inp.type = 'file'; inp.id = 'kc-picker'; inp.hidden = true; inp.multiple = multiple; if (accept) inp.accept = accept;
+    inp.addEventListener('change', () => { const fs = [...(inp.files || [])]; inp.remove(); resolve(fs); }, { once: true });
+    document.body.append(inp); inp.click();
+  });
+}
 // Suivi de l'ajout affiché en clair dans l'onglet Jeux (étape, progression, erreur exacte).
 let gameUp = null;
 const setGameUp = (o) => { gameUp = o; if (state.view === 'jeux') refresh(); };
@@ -3218,7 +3232,7 @@ async function gameBlob(g, onProgress) {
 function gamesView() {
   const sys = (c) => GAME_SYSTEMS.find((x) => x[1] === c) || [, c, c, '🎮'];
   return `<div class="view-head"><div><div class="eyebrow">Partagés avec toute la famille 🔒</div><h1>🎮 Jeux</h1></div>
-      ${canAddGames() ? `<label class="btn btn-primary">${ICON.plus} Ajouter un jeu<input type="file" id="game-upload" multiple hidden></label>` : ''}</div>
+      ${canAddGames() ? `<button class="btn btn-primary" data-action="game-add">${ICON.plus} Ajouter un jeu</button>` : ''}</div>
     ${gameUp ? `<div class="game-up ${gameUp.err ? 'err' : gameUp.ok ? 'ok' : ''}">${esc(gameUp.err || gameUp.ok || gameUp.msg)}
       ${gameUp.pct != null ? `<div class="game-bar-pct"><i style="width:${gameUp.pct}%"></i></div>` : ''}${gameUp.err || gameUp.ok ? '<button class="btn btn-sm" data-action="game-up-close">OK</button>' : ''}</div>` : ''}
     <div class="games-grid">${state.games.map((g) => `<div class="game-card">
@@ -3559,7 +3573,7 @@ function albumView() {
   ph.forEach((p) => { const k = new Date(p.ts).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }); (groups[k] ||= []).push(p); });
   return `<div class="view-head"><div><div class="eyebrow">Nos souvenirs</div><h1>📸 Album photo</h1></div>
       <div class="quick">${ph.length ? '<button class="btn" data-action="slideshow">▶ Diaporama</button>' : ''}
-        ${young ? '' : `<label class="btn btn-primary">${ICON.plus} Ajouter des photos<input type="file" id="album-upload" accept="image/*" multiple hidden></label>`}</div></div>
+        ${young ? '' : `<button class="btn btn-primary" data-action="album-add">${ICON.plus} Ajouter des photos</button>`}</div></div>
     ${ph.length ? Object.entries(groups).map(([k, list]) => `<div class="section-title"><span>${esc(cap(k))}</span><span>${list.length} photo${list.length > 1 ? 's' : ''}</span></div>
       <div class="album-grid">${list.map((p) => `<button class="album-item" data-action="open-photo" data-id="${esc(p.id)}">
         <img src="${esc(p.thumb)}" alt="${esc(p.caption || 'Photo')}" loading="lazy">${(p.likes || []).length ? `<span class="album-likes">❤️ ${(p.likes || []).length}</span>` : ''}</button>`).join('')}</div>`).join('')

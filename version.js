@@ -2,6 +2,10 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '4.0.2', date: '2026-10-11', title: '🩹 Ajout de jeux corrigé',
+    items: ['Corrige : le jeu choisi dans les dossiers du téléphone n’était parfois pas pris en compte (même correction pour l’album photo)'],
+  },
+  {
     version: '4.0.1', date: '2026-10-11', title: '🎮 Ajout des jeux plus fiable',
     items: ['L’onglet Jeux affiche chaque étape de l’ajout (fichier reçu, envoi en %, erreur exacte)', 'Si le format n’est pas reconnu, on choisit la console dans une liste', 'Envoi en plus petits morceaux, plus fiable sur les connexions lentes'],
   },
