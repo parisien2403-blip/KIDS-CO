@@ -3455,25 +3455,21 @@ function wishesView() {
   const people = state.members.filter((m) => !isMaison(m));
   const who = people.some((m) => m.id === state.wishWho) ? state.wishWho : state.me.id && !isMaison(state.me) ? state.me.id : people[0]?.id;
   const owner = member(who), mine = who === state.me.id, list = state.wishes.filter((w) => w.owner === who);
-  return `<div class="view-head"><div><div class="eyebrow">Noël, anniversaires… 🤫 surprise garantie</div><h1>🎁 Listes d’envies</h1></div>
+  return `<div class="view-head"><div><div class="eyebrow">Noël, anniversaires… ce qui ferait plaisir</div><h1>🎁 Listes d’envies</h1></div>
       ${mine ? `<button class="btn btn-primary" data-action="wish-new">${ICON.plus} Ajouter une envie</button>` : ''}</div>
     <div class="kid-tabs">${people.map((m) => `<button class="kid-tab ${m.id === who ? 'on' : ''}" style="--c:${esc(m.color)}" data-action="wish-who" data-id="${esc(m.id)}">${avatar(m)} ${m.id === state.me.id ? 'Ma liste' : esc(m.name)}
       <span class="kid-stars">🎁 ${state.wishes.filter((w) => w.owner === m.id).length}</span></button>`).join('')}</div>
-    ${!mine && list.length ? `<p class="small muted note-panel" style="margin:-4px 0 12px">🤫 ${esc(owner.name)} ne voit pas ce qui est réservé. Réservez un cadeau pour que personne d’autre ne l’offre en double.</p>` : ''}
     <div class="wish-grid">${list.map((w) => wishCard(w, mine)).join('')
       || `<div class="card empty-verif"><h2>${mine ? 'Votre liste est vide 🎁' : `${esc(owner.name)} n’a encore rien demandé`}</h2>
         <p class="muted">${mine ? 'Ajoutez ce qui vous ferait plaisir : un nom, une photo, un lien vers le magasin, un prix.' : 'Revenez plus tard 😉'}</p></div>`}</div>`;
 }
 function wishCard(w, mine) {
-  const by = w.reservedBy ? member(w.reservedBy) : null;
-  return `<div class="wish ${!mine && by ? 'reserved' : ''}">
+  return `<div class="wish">
     ${w.image ? `<button class="wish-img" data-action="open-att" data-id="${esc(w.image.id)}"><img src="${esc(w.image.thumb)}" alt=""></button>` : '<div class="wish-img empty">🎁</div>'}
     <div class="wish-body"><b>${w.prio ? '❤️ ' : ''}${esc(w.title)}</b>
       ${w.price ? `<span class="wish-price">${esc(w.price)}</span>` : ''}${w.note ? `<span class="small muted">${esc(w.note)}</span>` : ''}
       ${w.link ? `<a class="small" href="${esc(w.link)}" target="_blank" rel="noopener">🔗 Voir le produit</a>` : ''}</div>
-    <div class="wish-actions">${mine ? `<button class="btn btn-sm" data-action="wish-edit" data-id="${esc(w.id)}">Modifier</button>`
-      : by ? (by.id === state.me.id ? `<button class="btn btn-sm btn-valid" data-action="wish-reserve" data-id="${esc(w.id)}">✓ Réservé par vous</button>` : `<span class="wish-res">🔒 Réservé par ${esc(by.name)}</span>`)
-      : `<button class="btn btn-sm btn-primary" data-action="wish-reserve" data-id="${esc(w.id)}">🎁 Je l’offre</button>`}
+    <div class="wish-actions">${mine ? `<button class="btn btn-sm" data-action="wish-edit" data-id="${esc(w.id)}">Modifier</button>` : ''}
       ${!mine && isParent(state.me) && !isParent(member(w.owner)) ? `<div class="wish-decide"><button class="btn btn-sm btn-valid" data-action="wish-decide" data-ok="1" data-id="${esc(w.id)}">✅ Validé</button>
         <button class="btn btn-sm btn-danger" data-action="wish-decide" data-ok="" data-id="${esc(w.id)}">❌ Refusé</button></div>` : ''}</div>
   </div>`;

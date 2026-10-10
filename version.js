@@ -2,6 +2,10 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '4.3.1', date: '2026-10-11', title: '🎁 Envies simplifiées',
+    items: ['Bouton « Je l’offre » retiré : les parents valident ou refusent directement les envies'],
+  },
+  {
     version: '4.3', date: '2026-10-11', title: '🎁 Envies validées ou refusées',
     items: ['Listes d’envies : un parent peut « ✅ Valider » ou « ❌ Refuser » l’envie d’un enfant', 'L’envie est alors retirée de la liste et l’enfant reçoit un message (et une notification) qui lui dit si c’est validé ou refusé'],
   },
