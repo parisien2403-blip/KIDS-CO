@@ -2,6 +2,10 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '3.9.3', date: '2026-10-11', title: '🗳️ Onglet Sondages sur l’accueil',
+    items: ['Nouveau gros bouton « Sondages » sous le Pense-bête : « Lancer un vote » et tous les sondages en un toucher', 'Une pastille indique les sondages auxquels vous n’avez pas encore répondu'],
+  },
+  {
     version: '3.9.2', date: '2026-10-11', title: '✂️ Recadrer la photo',
     items: ['Après avoir choisi une photo de profil, on peut la déplacer, zoomer et la tourner pour qu’elle ne soit pas coupée', 'Bouton « ✂️ Recadrer » pour ajuster une photo déjà en place'],
   },

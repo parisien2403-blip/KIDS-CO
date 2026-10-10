@@ -1116,6 +1116,7 @@ const VIEWS = {
       ['notes', '⭐', 'Pense-bête', important.filter((n) => noteLevel(n) > 0).length],
       ['messages', '💬', 'Messages', unread],
       ['famille', '👨‍👩‍👧', 'Famille', 0],
+      ['sondages', '🗳️', 'Sondages', pollsToVote().length],
     ].filter(Boolean);
     const saved = ls.get('kc-home-tab-' + state.me.id);
     const tab = TABS.some((x) => x[0] === saved) ? saved : kid && canSeeMissions() && nbMissions ? 'missions' : 'jour';
@@ -1139,6 +1140,7 @@ const VIEWS = {
       messages: () => `<div class="home-actions"><button class="btn btn-primary" data-action="compose">${ICON.chat} Écrire un message</button>
           <button class="btn btn-arrive" data-action="arrive">📍 Bien arrivé</button></div>
         <div class="dash-grid">${mailCard}${pollsDashboardCard()}</div>`,
+      sondages: () => `<div class="home-actions"><button class="btn btn-primary" data-action="new-poll">${ICON.plus} Lancer un vote</button></div>${pollsView()}`,
       famille: () => `${presenceStrip()}<div class="dash-grid">${kid ? '' : missionsDashboardCard()}${albumDashboardCard()}</div>`,
     };
     return `<div class="dash-head home-head">
