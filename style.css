@@ -1585,3 +1585,8 @@ html,body{overflow-x:hidden;overflow-x:clip;max-width:100%}
 @media (max-width:360px){:root[data-season]:not([data-season='']) .home-head .clock{font-size:40px}:root[data-season]:not([data-season='']) .home-head .today-label{font-size:18px}}
 @media (max-width:400px){.topbar .ver-badge{display:none}.share-face span{display:none}.share-face{padding:3px}}
 .topbar>div{min-width:0}.topbar .brand-name,.topbar small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wish-decide{display:flex;gap:6px;margin-top:8px}.wish-decide .btn{flex:1;width:auto}
+.wish-grid{grid-template-columns:repeat(auto-fill,minmax(min(160px,45%),1fr))}
+.wish-img.empty{aspect-ratio:auto;height:90px;font-size:40px}
+.wish-actions .btn{font-size:13px;padding:8px 10px}
+.wish-decide .btn{min-width:0;padding:8px 4px;font-size:12.5px}.wish-actions{min-width:0}

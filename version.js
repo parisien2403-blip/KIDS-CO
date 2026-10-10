@@ -2,6 +2,10 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '4.3', date: '2026-10-11', title: '🎁 Envies validées ou refusées',
+    items: ['Listes d’envies : un parent peut « ✅ Valider » ou « ❌ Refuser » l’envie d’un enfant', 'L’envie est alors retirée de la liste et l’enfant reçoit un message (et une notification) qui lui dit si c’est validé ou refusé'],
+  },
+  {
     version: '4.2', date: '2026-10-11', title: '📱 Tablette partagée et tous les écrans',
     items: ['Appareil partagé (Réglages) : plusieurs enfants sur une même tablette, chacun garde son compte et on passe de l’un à l’autre d’un toucher sur sa photo en haut, sans code',
       'Tous les écrans vérifiés du petit téléphone (320 px) au PC : rien ne dépasse, gros boutons toujours 3 par ligne, textes à la bonne taille',

@@ -2360,6 +2360,19 @@ const ACTIONS = {
     if (w.image) save(backend.remove('attachments', w.image.id));
     save(backend.remove('wishes', w.id)); closeModal();
   },
+  // Un parent valide ou refuse l'envie d'un enfant : elle quitte la liste et l'enfant reçoit un message.
+  'wish-decide'(el) {
+    const w = state.wishes.find((x) => x.id === el.dataset.id), ok = !!el.dataset.ok;
+    if (!w || !isParent(state.me)) return;
+    const kid = member(w.owner);
+    if (!confirm(`${ok ? '✅ Valider' : '❌ Refuser'} « ${w.title} » pour ${kid.name} ?\n${kid.name} recevra un message, et l’envie sera retirée de sa liste.`)) return;
+    const text = ok ? `Bonne nouvelle ! Ton envie « ${w.title} » est validée ✅ 🎉` : `Désolé, ton envie « ${w.title} » n’est pas validée ❌. On en reparle si tu veux 😉`;
+    save(backend.add('messages', { from: state.me.id, to: [w.owner], subject: `🎁 Liste d’envies : ${ok ? 'validé' : 'refusé'}`, text, kind: 'wish', ts: Date.now(), readBy: [state.me.id] }));
+    notify([w.owner], { title: `🎁 ${ok ? 'Validé ✅' : 'Refusé ❌'} : ${w.title}`, body: `par ${state.me.name}`, tag: 'wish-' + w.id, view: 'messages' });
+    if (w.image) save(backend.remove('attachments', w.image.id));
+    save(backend.remove('wishes', w.id));
+    toast(`${ok ? '✅ Validé' : '❌ Refusé'} — ${kid.name} a reçu un message`);
+  },
   'wish-reserve'(el) {
     const w = state.wishes.find((x) => x.id === el.dataset.id);
     if (!w || w.owner === state.me.id) return;
@@ -3446,7 +3459,7 @@ function wishesView() {
       ${mine ? `<button class="btn btn-primary" data-action="wish-new">${ICON.plus} Ajouter une envie</button>` : ''}</div>
     <div class="kid-tabs">${people.map((m) => `<button class="kid-tab ${m.id === who ? 'on' : ''}" style="--c:${esc(m.color)}" data-action="wish-who" data-id="${esc(m.id)}">${avatar(m)} ${m.id === state.me.id ? 'Ma liste' : esc(m.name)}
       <span class="kid-stars">🎁 ${state.wishes.filter((w) => w.owner === m.id).length}</span></button>`).join('')}</div>
-    ${!mine && list.length ? `<p class="small muted" style="margin:-4px 0 12px">🤫 ${esc(owner.name)} ne voit pas ce qui est réservé. Réservez un cadeau pour que personne d’autre ne l’offre en double.</p>` : ''}
+    ${!mine && list.length ? `<p class="small muted note-panel" style="margin:-4px 0 12px">🤫 ${esc(owner.name)} ne voit pas ce qui est réservé. Réservez un cadeau pour que personne d’autre ne l’offre en double.</p>` : ''}
     <div class="wish-grid">${list.map((w) => wishCard(w, mine)).join('')
       || `<div class="card empty-verif"><h2>${mine ? 'Votre liste est vide 🎁' : `${esc(owner.name)} n’a encore rien demandé`}</h2>
         <p class="muted">${mine ? 'Ajoutez ce qui vous ferait plaisir : un nom, une photo, un lien vers le magasin, un prix.' : 'Revenez plus tard 😉'}</p></div>`}</div>`;
@@ -3460,7 +3473,9 @@ function wishCard(w, mine) {
       ${w.link ? `<a class="small" href="${esc(w.link)}" target="_blank" rel="noopener">🔗 Voir le produit</a>` : ''}</div>
     <div class="wish-actions">${mine ? `<button class="btn btn-sm" data-action="wish-edit" data-id="${esc(w.id)}">Modifier</button>`
       : by ? (by.id === state.me.id ? `<button class="btn btn-sm btn-valid" data-action="wish-reserve" data-id="${esc(w.id)}">✓ Réservé par vous</button>` : `<span class="wish-res">🔒 Réservé par ${esc(by.name)}</span>`)
-      : `<button class="btn btn-sm btn-primary" data-action="wish-reserve" data-id="${esc(w.id)}">🎁 Je l’offre</button>`}</div>
+      : `<button class="btn btn-sm btn-primary" data-action="wish-reserve" data-id="${esc(w.id)}">🎁 Je l’offre</button>`}
+      ${!mine && isParent(state.me) && !isParent(member(w.owner)) ? `<div class="wish-decide"><button class="btn btn-sm btn-valid" data-action="wish-decide" data-ok="1" data-id="${esc(w.id)}">✅ Validé</button>
+        <button class="btn btn-sm btn-danger" data-action="wish-decide" data-ok="" data-id="${esc(w.id)}">❌ Refusé</button></div>` : ''}</div>
   </div>`;
 }
 function openWish(w) {
