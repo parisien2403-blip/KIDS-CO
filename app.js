@@ -1134,11 +1134,11 @@ const VIEWS = {
         <div class="mission-grid" style="--n:7">
           <div></div>${days.map((d, i) => `<div class="mg-day ${d === t ? 'today' : ''}">${WEEKDAYS[i]}<small>${parseYmd(d).getDate()}</small></div>`).join('')}
           ${tasks.map((task) => `<div class="mg-task">${esc(task)}</div>${days.map((d) => cell(d, task)).join('')}`).join('')}
-          <div class="mg-task muted small">Fait</div>${days.map((d) => `<div class="mg-count ${dayDone(d) === tasks.length ? 'full' : ''}">${dayDone(d)}/${tasks.length}</div>`).join('')}
+          <div class="mg-task muted small">Fait</div>${days.map((d) => `<div class="mg-count ${tasks.length && dayDone(d) === tasks.length ? 'full' : ''}">${dayDone(d)}/${tasks.length}</div>`).join('')}
         </div>
         ${tasks.length ? '' : `<div class="empty" style="margin:10px 0">${parent ? 'Pas encore de missions : touchez « ⚙️ Gérer les missions » pour en choisir.' : 'Pas encore de missions — un parent va les préparer 😉'}</div>`}
         <div class="mission-mobile">
-          <div class="edt-daytabs">${days.map((d, i) => `<button class="${i === dayIdx ? 'on' : ''} ${d === t ? 'today' : ''}" data-action="mission-day" data-i="${i}"><b>${WEEKDAYS[i]}</b><span>${dayDone(d) === tasks.length ? '✅' : parseYmd(d).getDate()}</span></button>`).join('')}</div>
+          <div class="edt-daytabs">${days.map((d, i) => `<button class="${i === dayIdx ? 'on' : ''} ${d === t ? 'today' : ''}" data-action="mission-day" data-i="${i}"><b>${WEEKDAYS[i]}</b><span>${tasks.length && dayDone(d) === tasks.length ? '✅' : parseYmd(d).getDate()}</span></button>`).join('')}</div>
           <div class="mission-list">${tasks.map((task) => `<div class="mrow">${cell(days[dayIdx], task)}<span>${esc(task)}</span></div>`).join('')}</div>
         </div>
         <div class="mission-foot">${parent ? `<button class="btn btn-sm" data-action="manage-missions" data-id="${esc(kidId)}">⚙️ Gérer les missions de ${esc(kid.name)}</button>
@@ -1928,15 +1928,14 @@ function setSticker(kidId, date, type) {
 function openStickerPicker(kidId, date, packId) {
   const kid = member(kidId), cur = missionDoc(kidId, weekKey(parseYmd(date))).stickers?.[date];
   // Thèmes : d'abord ceux créés par la famille (images), puis les thèmes intégrés (sauf s'ils sont masqués).
-  const own = ownPacks(), hideBuiltin = !!state.edtConfig?.hideBuiltinStickers && own.length;
-  const tabs = [...own.map((n) => ['own:' + n, '📷 ' + n]), ...(hideBuiltin ? [] : STICKER_PACKS.map(([id, label]) => [id, label]))];
-  let pack = packId || ls.get('kc-sticker-pack-' + kidId) || tabs[0][0];
-  if (pack === 'perso') pack = own.length ? 'own:' + own[0] : 'own:Mes autocollants';
-  if (!tabs.some((x) => x[0] === pack) && !pack.startsWith('own:')) pack = tabs[0][0];
+  // Uniquement les autocollants de la famille (images ajoutées ou pack importé), rangés par thème.
+  const own = ownPacks(), tabs = own.map((n) => ['own:' + n, n]);
+  let pack = packId || ls.get('kc-sticker-pack-' + kidId) || '';
+  if (!pack.startsWith('own:') || (!own.includes(pack.slice(4)) && !packId)) pack = 'own:' + (own[0] || 'Mes autocollants');
   ls.set('kc-sticker-pack-' + kidId, pack);
   const ownName = pack.startsWith('own:') ? pack.slice(4) : null;
   const list = ownName ? state.stickerImgs.filter((x) => (x.pack || 'Mes autocollants') === ownName).map((x) => ['img:' + x.id, `<img src="${esc(x.img)}" alt="">`, x.label || 'Autocollant'])
-    : (STICKER_PACKS.find((p) => p[0] === pack) || STICKER_PACKS[0])[2];
+    : [];
   $('#modal-root').innerHTML = `<div class="modal-backdrop" data-action="close-modal"><div class="modal sticker-modal">
     <div class="eyebrow">${esc(cap(parseYmd(date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })))}</div>
     <h2>Un autocollant pour ${esc(kid.name)} ?</h2>
@@ -1945,7 +1944,7 @@ function openStickerPicker(kidId, date, packId) {
       <span class="sticker" style="--r:${((i * 37) % 30) - 15}deg">${e}</span><small>${esc(l)}</small>${k.startsWith('img:') ? `<span class="own-del" data-action="sticker-img-del" data-id="${esc(k.slice(4))}" data-kid="${esc(kidId)}" data-date="${date}" title="Supprimer">✕</span>` : ''}</button>`).join('')}
       ${ownName ? `<label class="sticker-opt add-own"><span class="sticker">＋</span><small>Ajouter des images</small><input type="file" class="sticker-upload" accept="image/*" multiple hidden data-kid="${esc(kidId)}" data-date="${date}" data-pack="${esc(ownName)}"></label>` : ''}</div>
     ${ownName ? `<p class="small muted" style="margin:8px 0 0">Une photo de <b>planche d’autocollants</b> est découpée automatiquement. Les images restent privées dans votre famille. Le ✕ supprime un autocollant.</p>` : ''}
-    ${own.length ? `<label class="check-line small" style="margin-top:8px"><input type="checkbox" class="hide-builtin" ${hideBuiltin ? 'checked' : ''} data-kid="${esc(kidId)}" data-date="${date}"> N’afficher que nos thèmes (masquer les thèmes intégrés)</label>` : ''}
+    <label class="btn btn-sm" style="margin-top:10px;cursor:pointer">📦 Importer un pack d’autocollants<input type="file" class="sticker-pack-import" accept=".json,application/json" hidden data-kid="${esc(kidId)}" data-date="${date}"></label>
     <div class="modal-actions">${cur ? `<button class="btn btn-danger" data-action="pick-sticker" data-kid="${esc(kidId)}" data-date="${date}" data-type="">Retirer l’autocollant</button>` : ''}
       <span class="grow"></span><button class="btn" data-action="close-modal-btn">Annuler</button></div>
   </div></div>`;
@@ -2508,10 +2507,21 @@ document.addEventListener('change', async (e) => {
     openCutter([...t.files].slice(0, 10), pack, () => openStickerPicker(kid, date, 'own:' + pack));
     return;
   }
-  if (t.classList.contains('hide-builtin')) {
-    save(backend.set('edtConfig', 'main', { hideBuiltinStickers: t.checked }));
-    state.edtConfig = { ...state.edtConfig, hideBuiltinStickers: t.checked };
-    openStickerPicker(t.dataset.kid, t.dataset.date); return;
+  if (t.classList.contains('sticker-pack-import') && t.files?.length) {
+    const { kid, date } = t.dataset;
+    try {
+      const data = JSON.parse(await t.files[0].text());
+      if (data.format !== 'kidsandco-stickers') throw new Error('format');
+      const known = new Set(state.stickerImgs.map((x) => x.img));
+      let n = 0;
+      for (const pk of data.packs || []) for (const st of pk.stickers || []) {
+        if (!/^data:image\/(png|webp|jpeg);base64,/.test(st.img || '') || st.img.length > 400000 || known.has(st.img)) continue;
+        n++; save(backend.add('stickerImgs', { img: st.img, pack: String(pk.name || 'Mes autocollants').slice(0, 24), label: String(st.label || pk.name || '').slice(0, 30), by: state.me.id, ts: Date.now() + n }));
+      }
+      toast(n ? `📦 ${n} autocollants importés` : 'Ces autocollants sont déjà là 😉');
+      setTimeout(() => openStickerPicker(kid, date, data.packs?.[0]?.name ? 'own:' + data.packs[0].name : undefined), 400);
+    } catch { toast('Fichier de pack illisible', true); }
+    t.value = ''; return;
   }
   if (t.classList.contains('note-att-input') && t.files?.length) {
     state.noteAtt = state.noteAtt || [];

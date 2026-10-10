@@ -2,6 +2,11 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '3.8', date: '2026-10-11', title: '🎨 Seulement vos autocollants',
+    items: ['Les autocollants intégrés sont retirés : seuls ceux de la famille s’affichent, rangés par thème',
+      '📦 Importer un pack d’autocollants (fichier .json) en un toucher'],
+  },
+  {
     version: '3.7.1', date: '2026-10-11', title: '🎯 Missions : listes remises à zéro',
     items: ['Les missions de tous les enfants sont vidées : chaque parent choisit les siennes', 'Les idées surlignées correspondent exactement à la liste ; un 2ᵉ toucher retire la mission', 'Bouton « Tout effacer » dans la gestion des missions'],
   },

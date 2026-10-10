@@ -1154,3 +1154,5 @@ img.avatar{width:42px;height:42px}
 .sticker img{object-fit:contain;border-radius:0;padding:3px}
 .sticker:has(img){background:transparent;box-shadow:none;width:62px;height:62px}
 .sticker-slot .sticker:has(img){width:44px;height:44px}
+.sticker:has(img){overflow:hidden;padding:0}
+.sticker img{width:auto;height:auto;max-width:100%;max-height:100%;padding:0}
