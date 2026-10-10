@@ -2,6 +2,10 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '4.0.1', date: '2026-10-11', title: '🎮 Ajout des jeux plus fiable',
+    items: ['L’onglet Jeux affiche chaque étape de l’ajout (fichier reçu, envoi en %, erreur exacte)', 'Si le format n’est pas reconnu, on choisit la console dans une liste', 'Envoi en plus petits morceaux, plus fiable sur les connexions lentes'],
+  },
+  {
     version: '4.0', date: '2026-10-11', title: '🎮 Jeux rétro pour la famille',
     items: ['Nouvel onglet « Jeux » dans le Menu ⋯ : un parent ajoute un jeu (NES, Super Nintendo, Game Boy, GBA, Mega Drive…), toute la famille peut y jouer',
       'Un toucher sur un jeu et il démarre, en plein écran avec les boutons à l’écran (ou une manette Bluetooth)',

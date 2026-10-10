@@ -2446,6 +2446,7 @@ const ACTIONS = {
   },
   'game-play'(el) { playGame(el.dataset.id); },
   'game-del'(el) { deleteGame(el.dataset.id); },
+  'game-up-close'() { gameUp = null; refresh(); },
   'pick-sticker'(el) { closeModal(); setSticker(el.dataset.kid, el.dataset.date, el.dataset.type); },
   'manage-missions'(el) { openManageMissions(el.dataset.id); },
   'add-task'(el) {
@@ -2623,7 +2624,7 @@ document.addEventListener('change', async (e) => {
     f.__busy = addAttachments(files, f.__att, f.dataset.single ? 1 : 4, () => renderAttach(f)).finally(() => { f.__busy = null; });
     return;
   }
-  if (t.id === 'game-upload' && t.files?.length) { addGames([...t.files]); t.value = ''; return; }
+  if (t.id === 'game-upload') { const fs = [...(t.files || [])]; t.value = ''; if (fs.length) addGames(fs); else setGameUp({ err: 'Aucun fichier reçu : le téléphone n’a pas transmis le fichier choisi.' }); return; }
   if (t.classList.contains('sticker-upload') && t.files?.length) {
     const { kid, date, pack } = t.dataset;
     openCutter([...t.files].slice(0, 10), pack, () => openStickerPicker(kid, date, 'own:' + pack));
@@ -3143,7 +3144,7 @@ function weatherFromGeo() {
 // découpés en morceaux de 600 Ko. Chaque téléphone garde ensuite une copie locale (IndexedDB) : le jeu démarre tout de suite.
 // L'émulateur (EmulatorJS, libre) est chargé depuis son site officiel au moment de jouer.
 const EJS_DATA = 'https://cdn.emulatorjs.org/stable/data/';
-const GAME_CHUNK = 600 * 1024, GAME_MAX = 16 * 1024 * 1024;
+const GAME_CHUNK = 400 * 1024, GAME_MAX = 16 * 1024 * 1024;
 const GAME_SYSTEMS = [
   [['nes', 'fds', 'unf', 'unif'], 'nes', 'NES', '🟥'], [['sfc', 'smc', 'fig', 'swc'], 'snes', 'Super Nintendo', '🟪'],
   [['gb', 'gbc'], 'gb', 'Game Boy', '🟩'], [['gba'], 'gba', 'Game Boy Advance', '🟦'],
@@ -3163,29 +3164,42 @@ function gamesDb(mode, fn) {
 const b64 = { enc: (buf) => { let s = ''; const u = new Uint8Array(buf); for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000)); return btoa(s); },
   dec: (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0)) };
 const canAddGames = () => !!state.me && !isMaison(state.me) && !isYoung(state.me);
+// Suivi de l'ajout affiché en clair dans l'onglet Jeux (étape, progression, erreur exacte).
+let gameUp = null;
+const setGameUp = (o) => { gameUp = o; if (state.view === 'jeux') refresh(); };
+const withTimeout = (p, ms) => Promise.race([p, new Promise((_, r) => setTimeout(() => r(new Error('délai dépassé (connexion lente ?)')), ms))]);
+function pickSystem(name) {
+  return new Promise((resolve) => {
+    $('#modal-root').innerHTML = `<div class="modal-backdrop"><div class="modal"><h2 style="margin-bottom:6px">Quelle console ?</h2>
+      <p class="small muted" style="margin:0 0 12px">Je ne reconnais pas le format de « ${esc(name)} ».</p>
+      <div class="sys-pick">${GAME_SYSTEMS.map(([, c, l, e], i) => `<button type="button" class="btn" data-i="${i}">${e} ${l}</button>`).join('')}</div>
+      <div class="modal-actions"><span class="grow"></span><button type="button" class="btn" data-i="-1">Annuler</button></div></div></div>`;
+    $('#modal-root').querySelector('.modal').addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (!b) return; closeModal(); resolve(GAME_SYSTEMS[Number(b.dataset.i)] || null); });
+  });
+}
 async function addGames(files) {
   let n = 0;
   for (const f of files) {
-    const name = f.name.replace(/\.[^.]+$/, '').replace(/[_]+/g, ' ').replace(/\s*\([^)]*\)|\s*\[[^\]]*\]/g, '').trim() || f.name;
-    let sys = systemOf(f.name);
-    if (!sys && /\.zip$/i.test(f.name)) {
-      const choice = prompt(`« ${name} » est compressé. Quelle console ?\n` + GAME_SYSTEMS.map(([, , l], i) => `${i + 1}. ${l}`).join('\n'), '1');
-      sys = GAME_SYSTEMS[Number(choice) - 1];
-    }
-    if (!sys) { toast(`« ${f.name} » : format de jeu non reconnu`, true); continue; }
-    if (f.size > GAME_MAX) { toast(`« ${name} » est trop gros (${Math.round(f.size / 1048576)} Mo, max 16 Mo)`, true); continue; }
-    const id = 'g' + Date.now().toString(36) + newCode().toLowerCase(), buf = await f.arrayBuffer(), parts = Math.ceil(buf.byteLength / GAME_CHUNK);
+    const name = f.name.replace(/\.[^.]+$/, '').replace(/[_]+/g, ' ').replace(/\s*\([^)]*\)|\s*\[[^\]]*\]/g, '').trim() || f.name || 'Jeu';
+    setGameUp({ msg: `📂 Fichier reçu : « ${f.name || 'sans nom'} » (${(f.size / 1048576).toFixed(1).replace('.', ',')} Mo)` });
+    let sys = systemOf(f.name || '');
+    if (!sys) sys = await pickSystem(f.name || name);
+    if (!sys) { setGameUp(null); continue; }
+    if (f.size > GAME_MAX) { setGameUp({ err: `« ${name} » est trop gros (${Math.round(f.size / 1048576)} Mo, maximum 16 Mo).` }); continue; }
+    if (!f.size) { setGameUp({ err: `Le fichier « ${f.name} » est vide ou illisible depuis ce dossier. Essayez de le copier dans « Téléchargements » puis recommencez.` }); continue; }
+    const id = 'g' + Date.now().toString(36) + newCode().toLowerCase();
     try {
+      const buf = await withTimeout(f.arrayBuffer(), 60000), parts = Math.ceil(buf.byteLength / GAME_CHUNK);
       for (let i = 0; i < parts; i++) {
-        toast(`🎮 Envoi de « ${name} » : ${Math.round((i / parts) * 100)} %`);
-        await backend.set('gameChunks', `${id}_${i}`, { game: id, i, data: b64.enc(buf.slice(i * GAME_CHUNK, (i + 1) * GAME_CHUNK)) });
+        setGameUp({ msg: `⬆️ Envoi de « ${name} » vers l’espace de la famille…`, pct: Math.round((i / parts) * 100) });
+        await withTimeout(backend.set('gameChunks', `${id}_${i}`, { game: id, i, data: b64.enc(buf.slice(i * GAME_CHUNK, (i + 1) * GAME_CHUNK)) }), 90000);
       }
-      await backend.set('games', id, { name, file: f.name, core: sys[1], system: sys[2], size: buf.byteLength, parts, by: state.me.id, ts: Date.now() });
-      await gamesDb('readwrite', (st) => st.put({ id, data: new Blob([buf]) }));
-      n++;
-    } catch (e) { console.error(e); toast(`Envoi de « ${name} » impossible : ${e.code || e.message}`, true); }
+      await withTimeout(backend.set('games', id, { name, file: f.name, core: sys[1], system: sys[2], size: buf.byteLength, parts, by: state.me.id, ts: Date.now() }), 60000);
+      await gamesDb('readwrite', (st) => st.put({ id, data: new Blob([buf]) })).catch(() => {});
+      n++; setGameUp({ ok: `✅ « ${name} » est ajouté pour toute la famille !` });
+    } catch (e) { console.error(e); setGameUp({ err: `Envoi de « ${name} » impossible : ${e.code || e.message || e}` }); }
   }
-  if (n) { toast(`🎮 ${n} jeu${n > 1 ? 'x' : ''} ajouté${n > 1 ? 's' : ''} pour toute la famille`); notify('all', { title: `🎮 Nouveau jeu : ${files.length === 1 ? files[0].name.replace(/\.[^.]+$/, '') : n + ' jeux'}`, body: `Ajouté par ${state.me.name} — Menu › Jeux`, tag: 'jeux', view: 'jeux' }); }
+  if (n) notify('all', { title: `🎮 Nouveau jeu dans Kids & Co`, body: `Ajouté par ${state.me.name} — Menu › Jeux`, tag: 'jeux', view: 'jeux' });
 }
 async function gameBlob(g, onProgress) {
   const local = await gamesDb('readonly', (st) => st.get(g.id)).catch(() => null);
@@ -3205,6 +3219,8 @@ function gamesView() {
   const sys = (c) => GAME_SYSTEMS.find((x) => x[1] === c) || [, c, c, '🎮'];
   return `<div class="view-head"><div><div class="eyebrow">Partagés avec toute la famille 🔒</div><h1>🎮 Jeux</h1></div>
       ${canAddGames() ? `<label class="btn btn-primary">${ICON.plus} Ajouter un jeu<input type="file" id="game-upload" multiple hidden></label>` : ''}</div>
+    ${gameUp ? `<div class="game-up ${gameUp.err ? 'err' : gameUp.ok ? 'ok' : ''}">${esc(gameUp.err || gameUp.ok || gameUp.msg)}
+      ${gameUp.pct != null ? `<div class="game-bar-pct"><i style="width:${gameUp.pct}%"></i></div>` : ''}${gameUp.err || gameUp.ok ? '<button class="btn btn-sm" data-action="game-up-close">OK</button>' : ''}</div>` : ''}
     <div class="games-grid">${state.games.map((g) => `<div class="game-card">
         <button class="game-play" data-action="game-play" data-id="${esc(g.id)}"><span class="game-ico">${sys(g.core)[3]}</span>
           <b>${esc(g.name)}</b><small>${esc(g.system)}</small><span class="game-go">▶ Jouer</span></button>

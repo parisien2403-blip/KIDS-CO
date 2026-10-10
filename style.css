@@ -1512,3 +1512,9 @@ img.avatar{width:42px;height:42px}
 .game-spin{font-size:54px;animation:sc-bob 1s ease-in-out infinite alternate}
 .game-pct{font-size:13px;opacity:.8}
 .game-overlay{isolation:isolate}.game-overlay iframe{position:relative}
+.game-up{margin:0 0 14px;padding:14px 16px;border-radius:var(--r-md);background:#E3F2FD;color:#0D3C61;font-weight:700;display:flex;flex-direction:column;gap:10px}
+.game-up.err{background:#FDECEA;color:#8A1C14}.game-up.ok{background:#E4F7EC;color:#17603a}
+.game-up .btn{align-self:flex-end}
+.game-bar-pct{height:10px;border-radius:999px;background:rgba(0,0,0,.1);overflow:hidden}.game-bar-pct i{display:block;height:100%;background:var(--accent);transition:width .3s}
+.sys-pick{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.games-grid > .empty-verif{grid-column:1/-1}
