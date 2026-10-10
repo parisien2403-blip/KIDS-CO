@@ -614,7 +614,7 @@ function startAs(m, { quiet = false } = {}) {
   syncPush();
   setTimeout(showNewsIfUpdated, 900);
   if (!quiet) toast(`Bonjour ${m.name} ${hasPhoto(m) ? '👋' : m.emoji || '👋'}`);
-  else if (lockCfg().on) showLock(); // réouverture de l'appli : on demande le code / l'empreinte
+  else if (lockCfg().on) showLock(); // réouverture de l'appli : on demande le code
 }
 
 function switchUser() {
@@ -2235,7 +2235,6 @@ const ACTIONS = {
   'toggle-tablet'() { ls.set('maison-tablet', ls.get('maison-tablet') === '1' ? '0' : '1'); applyTablet(); refresh(); },
   async notif() { await Notification.requestPermission(); await syncPush(true); refresh(); },
   'lock-key': (el) => lockKeyPress(el.dataset.k),
-  'lock-bio': () => unlockBio(false),
   'lock-switch'() { unlock(); switchUser(); },
   'lock-toggle'() {
     const c = lockCfg();
@@ -2244,12 +2243,7 @@ const ACTIONS = {
     setLockCfg(c); refresh();
     toast(c.on ? '🔒 Verrouillage activé sur cet appareil' : 'Verrouillage désactivé');
   },
-  async 'bio-toggle'() {
-    const c = lockCfg();
-    if (c.cred) { delete c.cred; setLockCfg(c); refresh(); return toast('Empreinte / Face ID désactivée'); }
-    try { c.cred = await bioRegister(); setLockCfg(c); refresh(); toast('👆 Empreinte / Face ID activée'); }
-    catch { toast('Impossible d’activer l’empreinte sur cet appareil.', true); }
-  },
+
   'push-test'() { notify([state.me.id], { title: '🔔 Test Kids & Co', body: 'Les notifications fonctionnent sur cet appareil 🎉', tag: 'test' }, { includeSelf: true }); toast('Notification de test envoyée…'); },
 };
 
@@ -3199,16 +3193,15 @@ function notifHelp(notif) {
   return '';
 }
 
-/* ================= Verrouillage de l'appli (code secret ou empreinte / Face ID) ================= */
+/* ================= Verrouillage de l'appli (code secret) ================= */
 // Réglage propre à chaque appareil et à chaque personne. Quand on quitte l'appli et qu'on revient
-// (après le délai choisi), un écran demande le code secret ou l'empreinte du téléphone.
+// (après le délai choisi), un écran demande le code secret.
 const lockKey = () => `kc-lock:${state.family?.id || ''}:${state.me?.id || ''}`;
 function lockCfg() { try { return JSON.parse(ls.get(lockKey())) || {}; } catch { return {}; } }
 function setLockCfg(c) { ls.set(lockKey(), JSON.stringify(c)); }
-const bytesToB64u = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 let hiddenAt = 0, locked = false, lockDigits = '', lockTries = 0, lockUntil = 0;
-state.bioAvail = false;
-(async () => { try { state.bioAvail = !!(window.PublicKeyCredential && await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()); } catch {} })();
+// L'empreinte / Face ID a été retirée : on efface l'ancien réglage s'il existait.
+try { const k = Object.keys(localStorage).filter((x) => x.startsWith('kc-lock')); for (const x of k) { const v = JSON.parse(localStorage.getItem(x)); if (v?.cred) { delete v.cred; localStorage.setItem(x, JSON.stringify(v)); } } } catch {}
 
 document.addEventListener('visibilitychange', () => {
   const c = lockCfg();
@@ -3221,38 +3214,17 @@ document.addEventListener('visibilitychange', () => {
 
 function lockCard() {
   if (!state.me || isMaison(state.me)) return '';
-  return `<section class="card lock-card"><h2 style="margin-bottom:4px">🔒 Code et empreinte</h2>
+  return `<section class="card lock-card"><h2 style="margin-bottom:4px">🔒 Code de verrouillage</h2>
     <p class="muted small" style="margin:0 0 6px">Protège l’appli sur ce téléphone quand vous la quittez.</p>${lockSettings()}</section>`;
 }
 function lockSettings() {
   if (!state.me || isMaison(state.me)) return '';
   const c = lockCfg(), canPin = !!state.me.pinHash;
   return `<div class="switch-line"><div><b>🔒 Verrouiller quand je quitte l’appli</b>
-      <div class="small muted">${canPin ? 'Au retour, il faut votre code secret' + (c.cred ? ' ou votre empreinte / Face ID' : '') + '.' : 'Créez d’abord un code secret (Modifier mon compte).'}</div></div>
+      <div class="small muted">${canPin ? 'Au retour, il faut votre code secret.' : 'Créez d’abord un code secret (Modifier mon compte).'}</div></div>
       ${canPin ? `<button class="btn btn-sm ${c.on ? 'btn-primary' : ''}" data-action="lock-toggle">${c.on ? 'Activé' : 'Activer'}</button>` : ''}</div>
     ${c.on ? `<div class="switch-line sub"><b>Verrouiller</b><select data-action="lock-delay">
-        ${[[0, 'Immédiatement'], [60, 'Après 1 minute'], [300, 'Après 5 minutes'], [900, 'Après 15 minutes']].map(([v, l]) => `<option value="${v}" ${(c.delay || 0) === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
-      <div class="switch-line sub"><div><b>👆 Empreinte / Face ID</b><div class="small muted">${state.bioAvail ? 'Déverrouiller avec le capteur du téléphone.' : 'Non disponible sur cet appareil ou ce navigateur.'}</div></div>
-        ${state.bioAvail ? `<button class="btn btn-sm ${c.cred ? 'btn-primary' : ''}" data-action="bio-toggle">${c.cred ? 'Activée' : 'Activer'}</button>` : ''}</div>` : ''}`;
-}
-
-async function bioRegister() {
-  const cred = await navigator.credentials.create({ publicKey: {
-    challenge: crypto.getRandomValues(new Uint8Array(32)),
-    rp: { name: 'Kids & Co', id: location.hostname },
-    user: { id: new TextEncoder().encode(state.me.id), name: fullName(state.me), displayName: fullName(state.me) },
-    pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
-    authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'discouraged' },
-    timeout: 60000,
-  } });
-  return bytesToB64u(cred.rawId);
-}
-async function bioCheck(id) {
-  const res = await navigator.credentials.get({ publicKey: {
-    challenge: crypto.getRandomValues(new Uint8Array(32)), rpId: location.hostname,
-    allowCredentials: [{ type: 'public-key', id: b64uToBytes(id) }], userVerification: 'required', timeout: 60000,
-  } });
-  return !!res;
+        ${[[0, 'Immédiatement'], [60, 'Après 1 minute'], [300, 'Après 5 minutes'], [900, 'Après 15 minutes']].map(([v, l]) => `<option value="${v}" ${(c.delay || 0) === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>` : ''}`;
 }
 
 function showLock() {
@@ -3267,23 +3239,16 @@ function showLock() {
     <h2>${esc(m.name)}</h2><p class="muted" id="lock-sub">🔒 Appli verrouillée — tapez votre code</p>
     <div class="pin-dots" id="lock-dots">${'<span class="pin-dot"></span>'.repeat(4)}</div>
     <div class="keypad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map((k) => `<button class="key" data-action="lock-key" data-k="${k}">${k}</button>`).join('')}
-      ${c.cred ? '<button class="key ghost bio" data-action="lock-bio" aria-label="Empreinte / Face ID">👆</button>' : '<span></span>'}
+      <span></span>
       <button class="key" data-action="lock-key" data-k="0">0</button>
       <button class="key ghost" data-action="lock-key" data-k="del" aria-label="Effacer">⌫</button></div>
     <button class="link" data-action="lock-switch">Ce n’est pas moi — changer d’utilisateur</button>
   </div></div>`;
-  if (c.cred && !document.hidden) setTimeout(() => unlockBio(true), 350);
 }
 function unlock() {
   locked = false; lockTries = 0;
   document.getElementById('lock-root')?.remove();
   hiddenAt = 0;
-}
-async function unlockBio(auto = false) {
-  const c = lockCfg();
-  if (!c.cred || !locked) return;
-  try { if (await bioCheck(c.cred)) unlock(); }
-  catch { if (!auto) { const sub = $('#lock-sub'); if (sub) sub.textContent = 'Empreinte non reconnue — utilisez votre code'; } }
 }
 async function lockKeyPress(k) {
   if (!locked || Date.now() < lockUntil) return;
