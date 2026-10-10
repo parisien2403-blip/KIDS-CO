@@ -1062,3 +1062,9 @@ img.avatar{width:42px;height:42px}
   .home-tab .ht-emo{font-size:30px}
   .home-actions .btn{flex:1}
 }
+/* Barre du bas : 3 gros boutons */
+@media (max-width:760px){
+  .tabbar .nav-btn{font-size:12.5px;padding:9px 4px}
+  .tabbar .nav-btn svg{width:24px;height:24px}
+}
+.more-title{margin:0 0 14px;font-size:22px}

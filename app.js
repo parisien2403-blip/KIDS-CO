@@ -913,7 +913,8 @@ function navBtn([id, label, icon, s], short, badges) {
 }
 // Barre du bas du téléphone : 4 onglets principaux + « Plus » pour le reste.
 function shortNav() {
-  const all = navItems(), first = ['accueil', 'agenda', 'messages', state.me?.missions ? 'missions' : 'verif'];
+  // Téléphone : 3 boutons seulement (Accueil, Agenda ou Missions pour un enfant, Menu) ; tout le reste est dans « Menu ».
+  const all = navItems(), first = ['accueil', state.me?.missions && !isParent(state.me) ? 'missions' : 'agenda'];
   const main = first.map((id) => all.find((n) => n[0] === id)).filter(Boolean), rest = all.filter((n) => !main.includes(n));
   return { main, rest };
 }
@@ -922,11 +923,11 @@ function navButtons(short = false) {
   if (!short) return navItems().map((n) => navBtn(n, false, badges)).join('');
   const { main, rest } = shortNav(), restBadge = rest.reduce((t, n) => t + (badges[n[0]] || 0), 0);
   return main.map((n) => navBtn(n, true, badges)).join('')
-    + `<button class="nav-btn ${rest.some((n) => n[0] === state.view) ? 'active' : ''}" data-action="nav-more">${ICON.more}<span>Plus</span>${restBadge ? `<span class="badge">${restBadge}</span>` : ''}</button>`;
+    + `<button class="nav-btn ${rest.some((n) => n[0] === state.view) ? 'active' : ''}" data-action="nav-more">${ICON.more}<span>Menu</span>${restBadge ? `<span class="badge">${restBadge}</span>` : ''}</button>`;
 }
 function openNavMore() {
   const badges = navBadges(), { rest } = shortNav();
-  $('#modal-root').innerHTML = `<div class="modal-backdrop" data-action="close-modal"><div class="modal more-sheet">
+  $('#modal-root').innerHTML = `<div class="modal-backdrop" data-action="close-modal"><div class="modal more-sheet"><h2 class="more-title">Menu</h2>
     <div class="more-grid">${rest.map(([id, label, icon]) => `<button class="more-item ${state.view === id ? 'on' : ''}" data-action="nav-from-more" data-view="${id}">
       ${ICON[icon]}<span>${label}</span>${badges[id] ? `<span class="badge">${badges[id]}</span>` : ''}</button>`).join('')}</div>
   </div></div>`;

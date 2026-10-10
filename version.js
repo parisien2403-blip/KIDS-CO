@@ -2,6 +2,10 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '3.2.1', date: '2026-10-10', title: '📱 Barre du bas simplifiée',
+    items: ['Sur téléphone, la barre du bas n’a plus que 3 gros boutons : Accueil, Agenda (Missions pour un enfant) et Menu', 'Tout le reste (Messages, À vérifier, Album, Envies…) est rangé dans « Menu »'],
+  },
+  {
     version: '3.2', date: '2026-10-10', title: '🏠 Accueil en onglets, plus simple',
     items: ['La page d’accueil est rangée en gros onglets : ☀️ Aujourd’hui, 📅 À venir, ⭐ Pense-bête, 💬 Messages, 👨‍👩‍👧 Famille',
       'Les enfants ont aussi un onglet 🎯 Missions, ouvert directement s’il reste des missions à faire',

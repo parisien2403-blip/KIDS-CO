@@ -113,11 +113,11 @@ nom **`VAPID_PRIVATE_KEY`**, valeur : la clé privée fournie à la mise en plac
 Ensuite, sur chaque appareil : *Réglages → Notifications → Activer* (sur iPhone : appli installée sur l'écran d'accueil, iOS 16.4+), puis « 🔔 Tester ».
 
 ### 📸 Album, 🗳️ sondages, 📍 « Bien arrivé »
-- **Album photo** (onglet Album, ou « ⋯ Plus » sur téléphone) : ajout de photos (allégées automatiquement), ❤️, légendes, diaporama. L'écran **Maison** lance le diaporama tout seul après 5 minutes sans activité.
+- **Album photo** (onglet Album, ou « ⋯ Menu » sur téléphone) : ajout de photos (allégées automatiquement), ❤️, légendes, diaporama. L'écran **Maison** lance le diaporama tout seul après 5 minutes sans activité.
 - **Sondages** : Messages → 🗳️ Sondages → « + Sondage ». Chacun vote, les résultats s'affichent en direct.
 - **📍 Bien arrivé** : un bouton sur l'accueil et dans Messages prévient toute la famille (position facultative) ; le lieu s'affiche sur la carte de la personne pour la journée.
 
 ### 🎁 Listes d'envies, 🏖️ vacances, 📷 images
-- **Listes d'envies** (onglet Envies, ou « ⋯ Plus » sur téléphone) : chacun ajoute ses envies (photo, lien, prix, ❤️). Les autres touchent **« Je l'offre »** pour réserver : la personne concernée **ne voit jamais** ce qui est réservé.
+- **Listes d'envies** (onglet Envies, ou « ⋯ Menu » sur téléphone) : chacun ajoute ses envies (photo, lien, prix, ❤️). Les autres touchent **« Je l'offre »** pour réserver : la personne concernée **ne voit jamais** ce qui est réservé.
 - **Vacances scolaires** (zone A par défaut, modifiable dans *Emploi du temps → Réglages*) et **jours fériés** apparaissent dans l'agenda ; l'accueil affiche « Plus que X dodos avant les vacances ». Les dates viennent du calendrier officiel de l'Éducation nationale.
 - **Images** : ajoutez jusqu'à 4 photos à un rendez-vous (ordonnance, convocation, plan…) ou à une note du pense-bête (bouton 📷). Touchez une miniature pour l'agrandir.
