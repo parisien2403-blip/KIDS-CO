@@ -190,7 +190,7 @@ const save = (p) => Promise.resolve(p).catch((e) => { console.error(e); toast('E
 /* ================= État ================= */
 const state = {
   user: null, me: null, family: null,
-  members: [], events: [], messages: [], notes: [], cours: [], edtNotes: [], edtConfig: {}, absences: [], presence: [], missions: [], push: [], photos: [], polls: [], wishes: [],
+  members: [], events: [], messages: [], notes: [], cours: [], edtNotes: [], edtConfig: {}, absences: [], presence: [], missions: [], push: [], photos: [], polls: [], wishes: [], activity: [],
   view: 'accueil',
   month: (() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); })(),
   selected: todayStr(),
@@ -852,6 +852,7 @@ async function enter(user) {
     backend.subscribe('push', (list) => { state.push = list; }),
     backend.subscribe('photos', (list) => { state.photos = list.sort((a, b) => b.ts - a.ts); refresh(); }, { limit: 300 }),
     backend.subscribe('polls', onPolls),
+    backend.subscribe('activity', (list) => { state.activity = list.sort((a, b) => b.ts - a.ts).slice(0, 80); refresh(); }, { limit: 80 }),
     backend.subscribe('wishes', (list) => { state.wishes = list.sort((a, b) => (b.prio ? 1 : 0) - (a.prio ? 1 : 0) || b.ts - a.ts); refresh(); }),
   );
 }
@@ -905,7 +906,7 @@ const NAV = [
   ['missions', 'Missions', 'target'], ['edt', 'Emploi du temps', 'book', 'Lycée'], ['messages', 'Messages', 'chat'],
   ['album', 'Album photo', 'photo', 'Album'], ['envies', 'Listes d’envies', 'gift', 'Envies'], ['important', 'Pense-bête', 'star', 'Notes'], ['reglages', 'Réglages', 'gear'],
 ];
-const navBadges = () => ({ messages: unreadCount() + pollsToVote().length, verif: verifItems().filter((i) => !i.done).length, missions: missionsLeftToday() });
+const navBadges = () => ({ agenda: calNews().length, messages: unreadCount() + pollsToVote().length, verif: verifItems().filter((i) => !i.done).length, missions: missionsLeftToday() });
 const navItems = () => NAV.filter((n) => n[0] !== 'missions' || canSeeMissions());
 function navBtn([id, label, icon, s], short, badges) {
   return `<button class="nav-btn ${state.view === id ? 'active' : ''}" data-action="nav" data-view="${id}">
@@ -1034,6 +1035,7 @@ const VIEWS = {
           <div class="greet">${hello} ${isMaison(state.me) ? 'la famille' : esc(state.me.name)}</div>
           <div class="clock" id="clock">${clockHtml(now)}</div>
           <div class="today-label">${esc(dateTxt)}</div></div></div>
+      ${calNewsBanner()}
       <nav class="home-tabs" role="tablist">${TABS.map(([id, emo, label, n]) => `<button class="home-tab ${id === tab ? 'on' : ''}" role="tab" aria-selected="${id === tab}" data-action="home-tab" data-tab="${id}">
         <span class="ht-emo">${emo}</span><span class="ht-label">${label}</span>${n ? `<span class="ht-badge">${n}</span>` : ''}</button>`).join('')}</nav>
       <div class="home-panel">${panels[tab]()}</div>`;
@@ -1062,7 +1064,8 @@ const VIEWS = {
           <h2>${m.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}</h2>
           <button class="btn btn-icon" data-action="month" data-delta="1" aria-label="Mois suivant">${ICON.right}</button>
           <button class="btn btn-sm" data-action="month" data-delta="0">Aujourd’hui</button></div>
-        <button class="btn btn-primary" data-action="new-event" data-date="${sel}">${ICON.plus} Ajouter</button></div>
+        <div class="head-btns">${canCalNews() ? `<button class="btn" data-action="cal-news">🆕 Derniers ajouts${calNews().length ? ` <span class="badge">${calNews().length}</span>` : ''}</button>` : ''}
+        <button class="btn btn-primary" data-action="new-event" data-date="${sel}">${ICON.plus} Ajouter</button></div></div>
       <div class="agenda">
         <div><div class="cal">${DOW.map((d) => `<div class="cal-dow">${d}</div>`).join('')}${cells}</div>
           <div class="legend"><span><i class="lg imp1"></i>Important</span><span><i class="lg imp2"></i>Urgent</span><span>🔁 Répété</span><span>🔔 Alerte</span>
@@ -1901,10 +1904,12 @@ async function submitEvent(form) {
   if (form.__busy) { toast('📷 Un instant, photo en préparation…'); await form.__busy; }
   data.images = await saveAttachments(form.__att || []);
   (form.__old || []).filter((x) => !data.images.some((im) => im.id === x)).forEach((x) => save(backend.remove('attachments', x)));
-  if (id) save(backend.update('events', id, data));
+  if (id) save(backend.update('events', id, { ...data, updatedBy: state.me.id, updatedAt: Date.now() }));
   else save(backend.add('events', { ...data, createdBy: state.me.id, ts: Date.now() }));
+  logActivity(id ? 'edit' : 'add', { ...data, id });
   const when = `${cap(parseYmd(data.date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }))}${data.allDay || !data.time ? '' : ' à ' + data.time}`;
-  notify('all', { title: `${data.verify ? '📌' : '📅'} ${id ? 'Modifié' : 'Nouveau'} : ${data.title}`, body: `${when} — par ${state.me.name}`, tag: 'ev-' + (id || data.title), view: data.verify ? 'verif' : 'agenda' });
+  // Notification seulement pour ce qui compte (Important, Urgent, À vérifier) ; le reste va dans « Du nouveau dans le calendrier ».
+  if (data.importance >= 1 || data.verify) notify('all', { title: `${data.verify ? '📌' : '📅'} ${id ? 'Modifié' : 'Nouveau'} : ${data.title}`, body: `${when} — par ${state.me.name}`, tag: 'ev-' + (id || data.title), view: data.verify ? 'verif' : 'agenda' });
   state.selected = data.date;
   closeModal();
   toast(id ? 'Rendez-vous modifié' : 'Rendez-vous ajouté — visible sur tous les appareils');
@@ -1986,6 +1991,9 @@ const ACTIONS = {
   'remove-photo'() { memberPhoto = null; $('#photo-preview').style.backgroundImage = ''; updatePhotoPreview(); },
   compose: () => openCompose(),
   'nav-more': () => openNavMore(),
+  'cal-news'() { openCalNews(); },
+  'cal-news-close'() { markCalSeen(); refresh(); },
+  'cal-news-go'(el) { closeModal(); state.selected = el.dataset.date; state.month = new Date(parseYmd(el.dataset.date).getFullYear(), parseYmd(el.dataset.date).getMonth(), 1); go('agenda'); },
   'home-tab'(el) { ls.set('kc-home-tab-' + state.me.id, el.dataset.tab); refresh(); },
   'wish-who'(el) { state.wishWho = el.dataset.id; refresh(); },
   'wish-new'() { openWish(null); },
@@ -2126,7 +2134,8 @@ const ACTIONS = {
     if (!confirm(`Supprimer « ${ev?.title} »${ev?.repeat !== 'none' ? ' (toutes les répétitions)' : ''} ?`)) return;
     (ev?.images || []).forEach((im) => save(backend.remove('attachments', im.id)));
     save(backend.remove('events', id)); closeModal(); toast('Rendez-vous supprimé');
-    if (ev) notify('all', { title: `🗑️ Supprimé : ${ev.title}`, body: `par ${state.me.name}`, tag: 'ev-' + id, view: 'agenda' });
+    if (ev) logActivity('del', ev);
+    if (ev && (ev.importance >= 1 || ev.verify)) notify('all', { title: `🗑️ Supprimé : ${ev.title}`, body: `par ${state.me.name}`, tag: 'ev-' + id, view: 'agenda' });
   },
   'edt-week'(el) {
     const n = Number(el.dataset.delta);
@@ -2622,6 +2631,48 @@ async function downloadQr() {
   g.fillText('Scannez pour ouvrir l’appli', 400, 880);
   const a = document.createElement('a');
   a.href = c.toDataURL('image/png'); a.download = 'kids-and-co-qr.png'; a.click();
+}
+
+/* ================= 🆕 Du nouveau dans le calendrier ================= */
+// Les ajouts ordinaires ne sonnent plus : on les retrouve dans un récapitulatif (parents et enfants de 12 ans et plus).
+function logActivity(kind, ev) {
+  save(backend.add('activity', { kind, evId: ev.id || null, title: ev.title, date: ev.date, time: ev.allDay ? '' : ev.time || '', imp: ev.importance || 0,
+    verify: !!ev.verify, by: state.me.id, ts: Date.now() }));
+}
+const canCalNews = () => !!state.me && !isMaison(state.me) && (isParent(state.me) || ageOf(state.me) === null || ageOf(state.me) >= 12);
+function calSeen() {
+  const k = 'kc-cal-seen-' + state.me.id;
+  let v = Number(ls.get(k));
+  if (!v) { v = Date.now(); ls.set(k, String(v)); } // première fois : on ne ressort pas tout l'historique
+  return v;
+}
+const calNews = () => { if (!canCalNews()) return []; const seen = calSeen(); return state.activity.filter((a) => a.ts > seen && a.by !== state.me.id); };
+const markCalSeen = () => ls.set('kc-cal-seen-' + state.me.id, String(Date.now()));
+function calNewsBanner() {
+  const n = calNews();
+  if (!n.length) return '';
+  const who = [...new Set(n.map((a) => member(a.by).name))].join(', ');
+  return `<div class="news-banner"><span class="news-ico">🆕</span>
+    <button class="news-text" data-action="cal-news"><b>Du nouveau dans le calendrier</b><span>${n.length} changement${n.length > 1 ? 's' : ''} par ${esc(who)} — toucher pour voir</span></button>
+    <button class="news-close" data-action="cal-news-close" aria-label="Fermer">✕</button></div>`;
+}
+function openCalNews() {
+  const seen = calSeen(), list = state.activity.filter((a) => a.by !== state.me.id).slice(0, 40);
+  const K = { add: ['➕', 'Ajouté'], edit: ['✏️', 'Modifié'], del: ['🗑️', 'Supprimé'] };
+  $('#modal-root').innerHTML = `<div class="modal-backdrop" data-action="close-modal"><div class="modal news-modal">
+    <h2>🆕 Derniers changements du calendrier</h2>
+    <div class="list">${list.map((a) => {
+      const m = member(a.by), d = a.date ? cap(parseYmd(a.date).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })) : '';
+      return `<button class="news-item ${a.ts > seen ? 'new' : ''} ${a.kind === 'del' ? 'del' : ''}" ${a.kind === 'del' || !a.date ? 'disabled' : `data-action="cal-news-go" data-date="${esc(a.date)}"`}>
+        <span class="ni-ico">${K[a.kind]?.[0] || '•'}</span>
+        <span class="ni-body"><b>${a.imp === 2 ? '🔴 ' : a.imp === 1 ? '❗ ' : ''}${a.verify ? '📌 ' : ''}${esc(a.title)}</b>
+          <small>${K[a.kind]?.[1] || ''} · ${esc(d)}${a.time ? ' à ' + esc(a.time) : ''}</small>
+          <small class="muted">par ${esc(m.name)} · ${esc(ago(a.ts))}</small></span>
+        ${a.ts > seen ? '<span class="ni-new">Nouveau</span>' : ''}</button>`;
+    }).join('') || '<div class="empty">Aucun changement récent.</div>'}</div>
+    <div class="modal-actions"><span class="grow"></span><button type="button" class="btn btn-primary" data-action="close-modal-btn">Fermer</button></div>
+  </div></div>`;
+  markCalSeen(); refresh();
 }
 
 /* ================= 📎 Images jointes (notes, rendez-vous, envies) ================= */

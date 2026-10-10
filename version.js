@@ -2,6 +2,12 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '3.3', date: '2026-10-10', title: '🔕 Moins de notifications, 🆕 récap du calendrier',
+    items: ['Les rendez-vous ordinaires ajoutés, modifiés ou supprimés n’envoient plus de notification (seulement Important, Urgent et À vérifier)',
+      'À l’ouverture, un bandeau vert « Du nouveau dans le calendrier » (avec ✕ pour le fermer) ouvre la liste des derniers changements — parents et enfants de 12 ans et plus',
+      'Bouton « 🆕 Derniers ajouts » dans l’Agenda ; pastilles vertes pour tout ce qui est nouveau'],
+  },
+  {
     version: '3.2.1', date: '2026-10-10', title: '📱 Barre du bas simplifiée',
     items: ['Sur téléphone, la barre du bas n’a plus que 3 gros boutons : Accueil, Agenda (Missions pour un enfant) et Menu', 'Tout le reste (Messages, À vérifier, Album, Envies…) est rangé dans « Menu »'],
   },

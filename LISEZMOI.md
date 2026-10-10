@@ -121,3 +121,8 @@ Ensuite, sur chaque appareil : *Réglages → Notifications → Activer* (sur iP
 - **Listes d'envies** (onglet Envies, ou « ⋯ Menu » sur téléphone) : chacun ajoute ses envies (photo, lien, prix, ❤️). Les autres touchent **« Je l'offre »** pour réserver : la personne concernée **ne voit jamais** ce qui est réservé.
 - **Vacances scolaires** (zone A par défaut, modifiable dans *Emploi du temps → Réglages*) et **jours fériés** apparaissent dans l'agenda ; l'accueil affiche « Plus que X dodos avant les vacances ». Les dates viennent du calendrier officiel de l'Éducation nationale.
 - **Images** : ajoutez jusqu'à 4 photos à un rendez-vous (ordonnance, convocation, plan…) ou à une note du pense-bête (bouton 📷). Touchez une miniature pour l'agrandir.
+
+### 🔕 Notifications plus calmes et 🆕 récap du calendrier
+- Un rendez-vous **ordinaire** ajouté, modifié ou supprimé **n'envoie plus de notification**. Seuls les rendez-vous **Important**, **Urgent** ou **À vérifier** sonnent encore (et toujours les messages).
+- À l'ouverture, un bandeau vert **« Du nouveau dans le calendrier »** apparaît sur l'accueil : le toucher ouvre la liste des derniers changements (ajouté / modifié / supprimé, par qui, quand) ; la croix ✕ le ferme. Aussi dans l'Agenda : bouton **🆕 Derniers ajouts**.
+- Réservé aux parents et aux enfants de 12 ans et plus. Les pastilles vertes signalent ce qui est nouveau.
