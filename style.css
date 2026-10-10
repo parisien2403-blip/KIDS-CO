@@ -1557,3 +1557,6 @@ html,body{overflow-x:hidden;overflow-x:clip;max-width:100%}
 .presence-row{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain}
 #main img,#main canvas,#main video{max-width:100%}
 :root[data-season]:not([data-season='']) .hero-frame{aspect-ratio:auto !important;width:100%;max-width:100%;min-height:0;align-self:stretch}
+:root[data-season]:not([data-season='']) .home-tab.ht-missions{aspect-ratio:304/146;min-height:0;padding:4px;gap:0;background:rgba(255,251,242,.95);font-size:clamp(11px,3vw,16px)}
+:root[data-season]:not([data-season='']) .home-tab.ht-missions .ht-emo{font-size:clamp(20px,5.4vw,30px)}
+:root[data-season]:not([data-season='']) .presence-head{background:rgba(255,251,242,.92);border-radius:14px;padding:8px 12px}

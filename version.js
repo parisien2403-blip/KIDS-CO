@@ -2,8 +2,8 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
-    version: '4.1.3', date: '2026-10-11', title: '📱 Plus de glissement gauche-droite',
-    items: ['iPhone : la page ne glisse plus de gauche à droite (le tableau à côté de l’horloge dépassait de l’écran)', 'Les gros boutons de l’accueil restent toujours dans la largeur de l’écran'],
+    version: '4.1.4', date: '2026-10-11', title: '📱 Plus de glissement gauche-droite',
+    items: ['iPhone : la page ne glisse plus de gauche à droite (le tableau à côté de l’horloge dépassait de l’écran)', 'Les gros boutons de l’accueil restent toujours dans la largeur de l’écran, bouton Missions à la même taille que les autres'],
   },
   {
     version: '4.1.2', date: '2026-10-11', title: '🌗 Lisible en mode sombre',
