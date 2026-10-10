@@ -1545,3 +1545,15 @@ img.avatar{width:42px;height:42px}
 :root[data-season]:not([data-season='']) .cal-dow{background:rgba(255,255,255,.88);border-radius:8px;color:#22476B;font-weight:800}
 :root[data-season]:not([data-season='']) .cal-day.out{opacity:.55;background:rgba(255,255,255,.6)}
 :root[data-season]:not([data-season='']) .legend{background:rgba(255,255,255,.9);border-radius:12px;padding:6px 10px}
+/* iPhone : rien ne doit dépasser en largeur (sinon toute la page glisse de gauche à droite) */
+html,body{overflow-x:hidden;overflow-x:clip;max-width:100%}
+.shell,#main{max-width:100vw;overflow-x:clip}
+.home-tabs{grid-template-columns:repeat(auto-fit,minmax(min(110px,30%),1fr))}
+@media (max-width:760px){.home-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.home-tab{min-width:0;overflow:hidden}
+.home-tab .ht-label{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+:root[data-season]:not([data-season='']) .home-head{grid-template-columns:minmax(0,1fr) minmax(0,40%)}
+.home-head .hero{min-width:0;overflow:hidden}
+.presence-row{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain}
+#main img,#main canvas,#main video{max-width:100%}
+:root[data-season]:not([data-season='']) .hero-frame{aspect-ratio:auto !important;width:100%;max-width:100%;min-height:0;align-self:stretch}
