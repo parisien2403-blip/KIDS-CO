@@ -2,6 +2,10 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '4.1', date: '2026-10-11', title: '🖼️ Jaquettes des jeux',
+    items: ['Chaque jeu peut avoir sa jaquette : bouton « 🖼️ Ajouter la jaquette » sous le jeu (visible par toute la famille)'],
+  },
+  {
     version: '4.0.2', date: '2026-10-11', title: '🩹 Ajout de jeux corrigé',
     items: ['Corrige : le jeu choisi dans les dossiers du téléphone n’était parfois pas pris en compte (même correction pour l’album photo)'],
   },

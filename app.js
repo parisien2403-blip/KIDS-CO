@@ -2446,6 +2446,12 @@ const ACTIONS = {
   },
   'game-play'(el) { playGame(el.dataset.id); },
   'game-del'(el) { deleteGame(el.dataset.id); },
+  async 'game-cover'(el) {
+    const [f] = await pickFiles({ accept: 'image/*' });
+    if (!f) return;
+    try { const cover = await resizeImage(f, 520, 0.82); save(backend.update('games', el.dataset.id, { cover })); toast('🖼️ Jaquette ajoutée pour toute la famille'); }
+    catch { toast('Image illisible', true); }
+  },
   async 'game-add'() { const fs = await pickFiles({ multiple: true }); if (fs.length) addGames(fs); },
   async 'album-add'() { const fs = await pickFiles({ accept: 'image/*', multiple: true }); if (fs.length) uploadPhotos(fs); },
   'game-up-close'() { gameUp = null; refresh(); },
@@ -3236,8 +3242,9 @@ function gamesView() {
     ${gameUp ? `<div class="game-up ${gameUp.err ? 'err' : gameUp.ok ? 'ok' : ''}">${esc(gameUp.err || gameUp.ok || gameUp.msg)}
       ${gameUp.pct != null ? `<div class="game-bar-pct"><i style="width:${gameUp.pct}%"></i></div>` : ''}${gameUp.err || gameUp.ok ? '<button class="btn btn-sm" data-action="game-up-close">OK</button>' : ''}</div>` : ''}
     <div class="games-grid">${state.games.map((g) => `<div class="game-card">
-        <button class="game-play" data-action="game-play" data-id="${esc(g.id)}"><span class="game-ico">${sys(g.core)[3]}</span>
+        <button class="game-play ${g.cover ? 'has-cover' : ''}" data-action="game-play" data-id="${esc(g.id)}">${g.cover ? `<img class="game-cover" src="${esc(g.cover)}" alt="">` : `<span class="game-ico">${sys(g.core)[3]}</span>`}
           <b>${esc(g.name)}</b><small>${esc(g.system)}</small><span class="game-go">▶ Jouer</span></button>
+        ${canAddGames() ? `<button class="game-cover-btn" data-action="game-cover" data-id="${esc(g.id)}">🖼️ ${g.cover ? 'Changer la jaquette' : 'Ajouter la jaquette'}</button>` : ''}
         ${canAddGames() && (isParent(state.me) || g.by === state.me.id) ? `<button class="game-del" data-action="game-del" data-id="${esc(g.id)}" aria-label="Retirer">✕</button>` : ''}</div>`).join('')
       || `<div class="card empty-verif"><h2>Aucun jeu pour l’instant 🎮</h2><p class="muted">${canAddGames() ? 'Touchez « Ajouter un jeu » et choisissez le fichier du jeu (.nes, .sfc, .gb, .gba, .md…). Il sera disponible sur les téléphones de toute la famille, et seulement pour elle.' : 'Demande à un parent d’ajouter des jeux 😉'}</p></div>`}</div>
     <p class="small muted note-panel" style="margin-top:14px">Un toucher sur un jeu et il démarre. Tournez le téléphone à l’horizontale pour jouer avec les boutons à l’écran ; une manette Bluetooth marche aussi. Les sauvegardes de partie restent sur chaque téléphone.</p>`;
