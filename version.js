@@ -2,6 +2,12 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '3.7', date: '2026-10-11', title: '✂️ Vos propres thèmes d’autocollants',
+    items: ['Créez vos thèmes (« ＋ Nouveau thème ») et ajoutez une photo de planche d’autocollants : l’appli découpe chaque autocollant toute seule',
+      'Touchez un cadre pour le garder ou l’enlever, glissez le doigt pour en tracer un à la main (fonds non unis)',
+      'Option « N’afficher que nos thèmes » pour remplacer les thèmes intégrés par les vôtres'],
+  },
+  {
     version: '3.6', date: '2026-10-11', title: '🎯 Plus de missions, autocollants à thème',
     items: ['Plus de 40 idées de missions, rangées par moment : matin, école, maison, animaux, soir, gentillesse, santé & sport',
       'Autocollants par thème : super-héros, K-pop & chasseuses de démons, princesses & magie, dinosaures, espace, sport, animaux, gourmandises',

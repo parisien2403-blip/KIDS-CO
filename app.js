@@ -1720,21 +1720,148 @@ const STICKER_PACKS = [
 ];
 const STICKERS = STICKER_PACKS.flatMap(([, , l]) => l);
 const STICKER = Object.fromEntries(STICKERS.map(([k, e, l]) => [k, { e, l }]));
-// Petite image carrée (PNG pour garder la transparence) pour un autocollant personnel.
-function stickerImage(file) {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file), img = new Image();
-    img.onload = () => {
-      const k = Math.min(1, 220 / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement('canvas');
-      c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
-      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-      let out = c.toDataURL('image/png');
-      if (out.length > 150000) out = c.toDataURL('image/jpeg', 0.85);
-      c.width = c.height = 0; URL.revokeObjectURL(url); resolve(out);
+// ---------- Autocollants personnels : découpage automatique d'une planche ----------
+const ownPacks = () => [...new Set(state.stickerImgs.map((x) => x.pack || 'Mes autocollants'))];
+const loadImage = (file) => new Promise((resolve, reject) => {
+  const url = URL.createObjectURL(file), img = new Image();
+  img.onload = () => resolve(img); img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Image illisible')); };
+  img.src = url;
+});
+const colorDist = (d, i, c) => Math.abs(d[i] - c[0]) + Math.abs(d[i + 1] - c[1]) + Math.abs(d[i + 2] - c[2]);
+// Repère les autocollants posés sur un fond uni (blanc, gris…) : zones colorées séparées par le fond.
+function detectStickers(img, T = 60, R = 0.006) {
+  const w = img.naturalWidth, h = img.naturalHeight, k = Math.min(1, 380 / Math.max(w, h));
+  const W = Math.max(1, Math.round(w * k)), H = Math.max(1, Math.round(h * k));
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(img, 0, 0, W, H);
+  const d = g.getImageData(0, 0, W, H).data;
+  const border = [];
+  for (let x = 0; x < W; x++) border.push((x) * 4, ((H - 1) * W + x) * 4);
+  for (let y = 0; y < H; y++) border.push((y * W) * 4, (y * W + W - 1) * 4);
+  const med = (o) => border.map((i) => d[i + o]).sort((a, b) => a - b)[border.length >> 1];
+  const bg = [med(0), med(1), med(2)];
+  const uniform = border.filter((i) => colorDist(d, i, bg) < 60).length / border.length;
+  if (uniform < 0.5) return { boxes: [], bg, uniform: false };
+  // Masque « pas le fond », un peu épaissi pour garder chaque autocollant d'un seul tenant.
+  const m = new Uint8Array(W * H);
+  for (let p = 0; p < W * H; p++) m[p] = colorDist(d, p * 4, bg) > T && d[p * 4 + 3] > 20 ? 1 : 0;
+  const r = Math.max(1, Math.round(Math.min(W, H) * R)), dm = new Uint8Array(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (m[y * W + x])
+    for (let yy = Math.max(0, y - r); yy <= Math.min(H - 1, y + r); yy++) for (let xx = Math.max(0, x - r); xx <= Math.min(W - 1, x + r); xx++) dm[yy * W + xx] = 1;
+  const seen = new Uint8Array(W * H), boxes = [];
+  for (let p0 = 0; p0 < W * H; p0++) {
+    if (!dm[p0] || seen[p0]) continue;
+    let x0 = W, y0 = H, x1 = 0, y1 = 0, n = 0; const st = [p0]; seen[p0] = 1;
+    while (st.length) {
+      const p = st.pop(), x = p % W, y = (p / W) | 0; n++;
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+      for (const q of [p - 1, p + 1, p - W, p + W]) if (q >= 0 && q < W * H && !seen[q] && dm[q] && Math.abs((q % W) - x) <= 1) { seen[q] = 1; st.push(q); }
+    }
+    if (n < W * H * 0.0025 || (x1 - x0) < W * 0.04 || (y1 - y0) < H * 0.04) continue;
+    boxes.push([x0, y0, x1, y1]);
+  }
+  // Fusionne les cadres qui se recouvrent beaucoup (un morceau détaché d'un même autocollant).
+  const area = (A) => (A[2] - A[0] + 1) * (A[3] - A[1] + 1);
+  const inter = (A, B) => Math.max(0, Math.min(A[2], B[2]) - Math.max(A[0], B[0]) + 1) * Math.max(0, Math.min(A[3], B[3]) - Math.max(A[1], B[1]) + 1);
+  for (let again = true; again;) {
+    again = false;
+    for (let a = 0; a < boxes.length && !again; a++) for (let b = a + 1; b < boxes.length; b++) {
+      const A = boxes[a], B = boxes[b];
+      if (inter(A, B) > 0.35 * Math.min(area(A), area(B))) { boxes[a] = [Math.min(A[0], B[0]), Math.min(A[1], B[1]), Math.max(A[2], B[2]), Math.max(A[3], B[3])]; boxes.splice(b, 1); again = true; break; }
+    }
+  }
+  const pad = Math.round(Math.min(W, H) * 0.012);
+  return { bg, uniform: true, boxes: boxes.filter((b) => (b[2] - b[0]) * (b[3] - b[1]) < W * H * 0.9)
+    .sort((a, b) => (Math.round(a[1] / (H / 8)) - Math.round(b[1] / (H / 8))) || a[0] - b[0])
+    .map(([x0, y0, x1, y1]) => [Math.max(0, x0 - pad) / W, Math.max(0, y0 - pad) / H, Math.min(W, x1 + pad) / W, Math.min(H, y1 + pad) / H]) };
+}
+// Découpe un cadre (coordonnées 0–1) en petite image ; le fond uni autour devient transparent.
+function cutSticker(img, [fx0, fy0, fx1, fy1], bg) {
+  const w = img.naturalWidth, h = img.naturalHeight, sx = fx0 * w, sy = fy0 * h, sw = (fx1 - fx0) * w, sh = (fy1 - fy0) * h;
+  const k = Math.min(1, 220 / Math.max(sw, sh)), W = Math.max(1, Math.round(sw * k)), H = Math.max(1, Math.round(sh * k));
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(img, sx, sy, sw, sh, 0, 0, W, H);
+  if (bg) {
+    const id = g.getImageData(0, 0, W, H), d = id.data, seen = new Uint8Array(W * H), st = [];
+    for (let x = 0; x < W; x++) st.push(x, (H - 1) * W + x);
+    for (let y = 0; y < H; y++) st.push(y * W, y * W + W - 1);
+    while (st.length) {
+      const p = st.pop();
+      if (seen[p]) continue; seen[p] = 1;
+      if (colorDist(d, p * 4, bg) > 40) continue;
+      d[p * 4 + 3] = 0;
+      const x = p % W;
+      if (x > 0) st.push(p - 1); if (x < W - 1) st.push(p + 1); if (p >= W) st.push(p - W); if (p < W * (H - 1)) st.push(p + W);
+    }
+    g.putImageData(id, 0, 0);
+  }
+  let out = c.toDataURL('image/webp', 0.85);
+  if (!out.startsWith('data:image/webp')) out = c.toDataURL('image/png');
+  c.width = c.height = 0;
+  return out;
+}
+// Fenêtre de découpage : cadres détectés (touchez pour garder / enlever) + tracé à la main.
+async function openCutter(files, pack, done) {
+  let idx = 0, added = 0;
+  const next = async () => {
+    if (idx >= files.length) { toast(`🎨 ${added} autocollant${added > 1 ? 's' : ''} ajouté${added > 1 ? 's' : ''} à « ${pack} »`); return done(); }
+    let img;
+    try { img = await loadImage(files[idx]); } catch { toast('Image illisible', true); idx++; return next(); }
+    let det = detectStickers(img);
+    if (det.uniform && det.boxes.length < 2) { const d2 = detectStickers(img, 60, 0.003); if (d2.boxes.length > det.boxes.length) det = d2; }
+    let boxes = det.boxes.map((b) => ({ b, on: true }));
+    if (!boxes.length) boxes = [{ b: [0, 0, 1, 1], on: true }];
+    $('#modal-root').innerHTML = `<div class="modal-backdrop"><div class="modal cutter-modal">
+      <h2>✂️ Découpage ${files.length > 1 ? `(${idx + 1}/${files.length})` : ''}</h2>
+      <p class="small muted" style="margin:0 0 8px">${det.uniform && det.boxes.length ? `${det.boxes.length} autocollant${det.boxes.length > 1 ? 's' : ''} trouvé${det.boxes.length > 1 ? 's' : ''}. Touchez un cadre pour l’enlever ou le remettre.` : 'Fond non uni : tracez un cadre avec le doigt autour de chaque autocollant.'} Glissez le doigt pour tracer un cadre en plus.</p>
+      <div class="cut-stage"><img src="${img.src}" alt=""><div class="cut-layer"></div></div>
+      <div class="modal-actions"><button type="button" class="btn" data-cut="none">Tout enlever</button><span class="grow"></span>
+        <button type="button" class="btn" data-cut="skip">${files.length > 1 ? 'Passer' : 'Annuler'}</button>
+        <button type="button" class="btn btn-primary" data-cut="ok">Ajouter</button></div>
+    </div></div>`;
+    const layer = $('.cut-layer'), okBtn = $('[data-cut=ok]');
+    const draw = () => {
+      layer.innerHTML = boxes.map(({ b, on }, i) => `<div class="cut-box ${on ? 'on' : ''}" data-i="${i}" style="left:${b[0] * 100}%;top:${b[1] * 100}%;width:${(b[2] - b[0]) * 100}%;height:${(b[3] - b[1]) * 100}%"></div>`).join('');
+      const n = boxes.filter((x) => x.on).length;
+      okBtn.textContent = `Ajouter ${n} autocollant${n > 1 ? 's' : ''}`; okBtn.disabled = !n;
     };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Image illisible')); };
-    img.src = url;
-  });
+    draw();
+    let start = null, temp = null;
+    const pos = (e) => { const r = layer.getBoundingClientRect(); return [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))]; };
+    layer.addEventListener('pointerdown', (e) => { e.preventDefault(); start = pos(e); layer.setPointerCapture(e.pointerId); });
+    layer.addEventListener('pointermove', (e) => {
+      if (!start) return;
+      const [x, y] = pos(e), b = [Math.min(start[0], x), Math.min(start[1], y), Math.max(start[0], x), Math.max(start[1], y)];
+      if (!temp) { temp = document.createElement('div'); temp.className = 'cut-box on drawing'; layer.append(temp); }
+      Object.assign(temp.style, { left: b[0] * 100 + '%', top: b[1] * 100 + '%', width: (b[2] - b[0]) * 100 + '%', height: (b[3] - b[1]) * 100 + '%' });
+    });
+    layer.addEventListener('pointerup', (e) => {
+      if (!start) return;
+      const [x, y] = pos(e), b = [Math.min(start[0], x), Math.min(start[1], y), Math.max(start[0], x), Math.max(start[1], y)];
+      if (b[2] - b[0] > 0.04 && b[3] - b[1] > 0.04) boxes.push({ b, on: true, manual: true });
+      else { // simple toucher : garder / enlever le cadre touché (le plus petit)
+        const hit = boxes.map((o, i) => [o, i]).filter(([o]) => x >= o.b[0] && x <= o.b[2] && y >= o.b[1] && y <= o.b[3]).sort((a, b2) => (a[0].b[2] - a[0].b[0]) * (a[0].b[3] - a[0].b[1]) - (b2[0].b[2] - b2[0].b[0]) * (b2[0].b[3] - b2[0].b[1]))[0];
+        if (hit) hit[0].on = !hit[0].on;
+      }
+      start = null; temp = null; draw();
+    });
+    $('.cutter-modal').addEventListener('click', async (e) => {
+      const a = e.target.closest('[data-cut]')?.dataset.cut;
+      if (!a) return;
+      if (a === 'none') { boxes.forEach((o) => { o.on = false; }); return draw(); }
+      if (a === 'skip') { idx++; URL.revokeObjectURL(img.src); return files.length > 1 ? next() : done(); }
+      okBtn.disabled = true; okBtn.textContent = 'Ajout…';
+      const base = files[idx].name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').slice(0, 18);
+      let n = 0;
+      for (const o of boxes.filter((x) => x.on)) {
+        n++;
+        const data = cutSticker(img, o.b, det.uniform ? det.bg : null);
+        save(backend.add('stickerImgs', { img: data, pack, label: boxes.filter((x) => x.on).length > 1 ? `${pack} ${added + n}` : base || pack, by: state.me.id, ts: Date.now() + n }));
+      }
+      added += n; idx++; URL.revokeObjectURL(img.src); next();
+    });
+  };
+  next();
 }
 // Autocollant (thème ou image ajoutée par un parent) : { e: emoji de secours, l: nom, html: affichage }.
 function stickerOf(type) {
@@ -1798,18 +1925,25 @@ function setSticker(kidId, date, type) {
 }
 function openStickerPicker(kidId, date, packId) {
   const kid = member(kidId), cur = missionDoc(kidId, weekKey(parseYmd(date))).stickers?.[date];
-  const pack = packId || ls.get('kc-sticker-pack-' + kidId) || 'classic';
+  // Thèmes : d'abord ceux créés par la famille (images), puis les thèmes intégrés (sauf s'ils sont masqués).
+  const own = ownPacks(), hideBuiltin = !!state.edtConfig?.hideBuiltinStickers && own.length;
+  const tabs = [...own.map((n) => ['own:' + n, '📷 ' + n]), ...(hideBuiltin ? [] : STICKER_PACKS.map(([id, label]) => [id, label]))];
+  let pack = packId || ls.get('kc-sticker-pack-' + kidId) || tabs[0][0];
+  if (pack === 'perso') pack = own.length ? 'own:' + own[0] : 'own:Mes autocollants';
+  if (!tabs.some((x) => x[0] === pack) && !pack.startsWith('own:')) pack = tabs[0][0];
   ls.set('kc-sticker-pack-' + kidId, pack);
-  const list = pack === 'perso' ? state.stickerImgs.map((x) => ['img:' + x.id, `<img src="${esc(x.img)}" alt="">`, x.label || 'Autocollant'])
+  const ownName = pack.startsWith('own:') ? pack.slice(4) : null;
+  const list = ownName ? state.stickerImgs.filter((x) => (x.pack || 'Mes autocollants') === ownName).map((x) => ['img:' + x.id, `<img src="${esc(x.img)}" alt="">`, x.label || 'Autocollant'])
     : (STICKER_PACKS.find((p) => p[0] === pack) || STICKER_PACKS[0])[2];
   $('#modal-root').innerHTML = `<div class="modal-backdrop" data-action="close-modal"><div class="modal sticker-modal">
     <div class="eyebrow">${esc(cap(parseYmd(date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })))}</div>
     <h2>Un autocollant pour ${esc(kid.name)} ?</h2>
-    <div class="pack-tabs">${[...STICKER_PACKS.map(([id, label]) => [id, label]), ['perso', '📷 Mes autocollants']].map(([id, label]) => `<button class="pack-tab ${id === pack ? 'on' : ''}" data-action="sticker-pack" data-pack="${id}" data-kid="${esc(kidId)}" data-date="${date}">${label}</button>`).join('')}</div>
+    <div class="pack-tabs">${[...tabs, ['new', '＋ Nouveau thème']].map(([id, label]) => `<button class="pack-tab ${id === pack ? 'on' : ''}" data-action="sticker-pack" data-pack="${id}" data-kid="${esc(kidId)}" data-date="${date}">${label}</button>`).join('')}</div>
     <div class="sticker-pick">${list.map(([k, e, l], i) => `<button class="sticker-opt ${cur?.type === k ? 'on' : ''}" data-action="pick-sticker" data-kid="${esc(kidId)}" data-date="${date}" data-type="${esc(k)}">
       <span class="sticker" style="--r:${((i * 37) % 30) - 15}deg">${e}</span><small>${esc(l)}</small>${k.startsWith('img:') ? `<span class="own-del" data-action="sticker-img-del" data-id="${esc(k.slice(4))}" data-kid="${esc(kidId)}" data-date="${date}" title="Supprimer">✕</span>` : ''}</button>`).join('')}
-      ${pack === 'perso' ? `<label class="sticker-opt add-own"><span class="sticker">＋</span><small>Ajouter une image</small><input type="file" class="sticker-upload" accept="image/*" multiple hidden data-kid="${esc(kidId)}" data-date="${date}"></label>` : ''}</div>
-    ${pack === 'perso' ? '<p class="small muted" style="margin:8px 0 0">Ajoutez vos propres images (le héros ou les personnages préférés de vos enfants). Elles restent privées dans votre famille. Le ✕ supprime une image.</p>' : ''}
+      ${ownName ? `<label class="sticker-opt add-own"><span class="sticker">＋</span><small>Ajouter des images</small><input type="file" class="sticker-upload" accept="image/*" multiple hidden data-kid="${esc(kidId)}" data-date="${date}" data-pack="${esc(ownName)}"></label>` : ''}</div>
+    ${ownName ? `<p class="small muted" style="margin:8px 0 0">Une photo de <b>planche d’autocollants</b> est découpée automatiquement. Les images restent privées dans votre famille. Le ✕ supprime un autocollant.</p>` : ''}
+    ${own.length ? `<label class="check-line small" style="margin-top:8px"><input type="checkbox" class="hide-builtin" ${hideBuiltin ? 'checked' : ''} data-kid="${esc(kidId)}" data-date="${date}"> N’afficher que nos thèmes (masquer les thèmes intégrés)</label>` : ''}
     <div class="modal-actions">${cur ? `<button class="btn btn-danger" data-action="pick-sticker" data-kid="${esc(kidId)}" data-date="${date}" data-type="">Retirer l’autocollant</button>` : ''}
       <span class="grow"></span><button class="btn" data-action="close-modal-btn">Annuler</button></div>
   </div></div>`;
@@ -2168,9 +2302,13 @@ const ACTIONS = {
   'sticker-img-del'(el) {
     if (!confirm('Supprimer cet autocollant de la collection ?')) return;
     save(backend.remove('stickerImgs', el.dataset.id));
-    openStickerPicker(el.dataset.kid, el.dataset.date, 'perso');
+    openStickerPicker(el.dataset.kid, el.dataset.date);
   },
-  'sticker-pack'(el) { openStickerPicker(el.dataset.kid, el.dataset.date, el.dataset.pack); },
+  'sticker-pack'(el) {
+    if (el.dataset.pack !== 'new') return openStickerPicker(el.dataset.kid, el.dataset.date, el.dataset.pack);
+    const name = (prompt('Nom du nouveau thème (ex. Toy Story, Spidey, K-pop…) :') || '').trim().slice(0, 24);
+    if (name) openStickerPicker(el.dataset.kid, el.dataset.date, 'own:' + name);
+  },
   'pick-sticker'(el) { closeModal(); setSticker(el.dataset.kid, el.dataset.date, el.dataset.type); },
   'manage-missions'(el) { openManageMissions(el.dataset.id); },
   'add-task'(el) {
@@ -2345,15 +2483,14 @@ document.addEventListener('change', async (e) => {
     return;
   }
   if (t.classList.contains('sticker-upload') && t.files?.length) {
-    const files = [...t.files].slice(0, 12), { kid, date } = t.dataset;
-    for (const file of files) {
-      try {
-        const im = await stickerImage(file);
-        const label = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').slice(0, 24) || 'Autocollant';
-        await save(backend.add('stickerImgs', { img: im, label, by: state.me.id, ts: Date.now() })); // la liste se met à jour par l'abonnement
-      } catch { toast('Image illisible', true); }
-    }
-    toast('🎨 Autocollant ajouté'); openStickerPicker(kid, date, 'perso'); return;
+    const { kid, date, pack } = t.dataset;
+    openCutter([...t.files].slice(0, 10), pack, () => openStickerPicker(kid, date, 'own:' + pack));
+    return;
+  }
+  if (t.classList.contains('hide-builtin')) {
+    save(backend.set('edtConfig', 'main', { hideBuiltinStickers: t.checked }));
+    state.edtConfig = { ...state.edtConfig, hideBuiltinStickers: t.checked };
+    openStickerPicker(t.dataset.kid, t.dataset.date); return;
   }
   if (t.classList.contains('note-att-input') && t.files?.length) {
     state.noteAtt = state.noteAtt || [];
