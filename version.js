@@ -2,6 +2,10 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '3.3.1', date: '2026-10-11', title: '🩹 Ouverture depuis le raccourci corrigée',
+    items: ['Corrige « Ce site est inaccessible » à l’ouverture depuis l’icône de l’écran d’accueil'],
+  },
+  {
     version: '3.3', date: '2026-10-10', title: '🔕 Moins de notifications, 🆕 récap du calendrier',
     items: ['Les rendez-vous ordinaires ajoutés, modifiés ou supprimés n’envoient plus de notification (seulement Important, Urgent et À vérifier)',
       'À l’ouverture, un bandeau vert « Du nouveau dans le calendrier » (avec ✕ pour le fermer) ouvre la liste des derniers changements — parents et enfants de 12 ans et plus',

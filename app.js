@@ -2528,7 +2528,7 @@ async function doUpdate(version) {
       await new Promise((ok) => { navigator.serviceWorker.addEventListener('controllerchange', ok, { once: true }); setTimeout(ok, 2500); });
     }
   } catch {}
-  location.replace(location.pathname + '?v=' + encodeURIComponent(version || Date.now()) + location.hash);
+  location.replace(location.pathname.replace(/index\.html$/, '') + '?v=' + encodeURIComponent(version || Date.now()) + location.hash);
 }
 setTimeout(checkUpdate, 1500); // dès l'ouverture
 
