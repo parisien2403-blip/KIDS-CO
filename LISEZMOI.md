@@ -10,7 +10,7 @@ Tout ce qu'un membre ajoute depuis son téléphone (rendez-vous, chose important
 | **Accueil** | Grande horloge et gros onglets : ☀️ Aujourd’hui, 🎯 Missions (enfants), 📅 À venir, ⭐ Pense-bête, 💬 Messages, 👨‍👩‍👧 Famille (qui est connecté, album). Pensé pour la tablette posée dans la cuisine. |
 | **Agenda** | Calendrier du mois, ajout/modification de rendez-vous : heure, catégorie (santé, école, anniversaire…), répétition (semaine / mois / année), personnes concernées (chacun a sa couleur), notes. |
 | **Messages** | Discussion de famille en temps réel (Entrée pour envoyer, Maj+Entrée pour aller à la ligne). Pastille de messages non lus. |
-| **Pense-bête** | Choses importantes, courses, tâches : étoile « important », case à cocher, effacer les éléments terminés. |
+| **Pense-bête** | Une idée à ne pas oublier, sans date ni catégorie : couleur 🟢 normal, 🟠 important, 🔴 urgent ; la cocher pose un tampon « ✓ VALIDÉ » avec le prénom. |
 | **Réglages** | Prénom et couleur, code d'invitation du foyer, **mode tablette** (écran toujours allumé + retour automatique à l'accueil), thème clair/sombre, notifications. |
 
 Fonctionne aussi **hors connexion** : les modifications sont envoyées dès que le réseau revient.
@@ -63,11 +63,6 @@ La synchronisation entre appareils utilise **Firebase** (Google), dont l'offre g
 - Dans la fiche d'un compte (Parent / Enfant / Maison), la case **🎯 Missions** donne accès à l'onglet Missions (cochée par défaut pour un enfant).
 - Chaque enfant a sa **carte Mission de la semaine** : des tâches à cocher chaque jour (douche, lit, table, jouets… modifiables par les parents).
 - **Seuls les parents** collent des autocollants (⭐ 🌟 🏆 💖 🦄 🚀 👑 🌈) sur la carte. **Chaque lundi, une nouvelle carte vierge** ; les semaines passées restent consultables.
-
-### À vérifier (choses très importantes)
-- Dans la fiche d'un élément du planning, cochez **📌 À vérifier — très important** : il apparaît dans le calendrier **et** dans l'onglet **À vérifier**.
-- On y voit l'échéance (en retard, aujourd'hui, demain, dans X jours), le rappel et qui est concerné.
-- **✓ C'est fait** pose un **tampon VALIDÉ** avec le prénom et la date, visible par toute la famille en direct ; « Annuler » le retire. Un élément répété se valide à chaque fois.
 
 ### Emploi du temps du lycée
 - Grille de la semaine (jour par jour sur téléphone), semaines A / B, samedi en option.
@@ -123,6 +118,6 @@ Ensuite, sur chaque appareil : *Réglages → Notifications → Activer* (sur iP
 - **Images** : ajoutez jusqu'à 4 photos à un rendez-vous (ordonnance, convocation, plan…) ou à une note du pense-bête (bouton 📷). Touchez une miniature pour l'agrandir.
 
 ### 🔕 Notifications plus calmes et 🆕 récap du calendrier
-- Un rendez-vous **ordinaire** ajouté, modifié ou supprimé **n'envoie plus de notification**. Seuls les rendez-vous **Important**, **Urgent** ou **À vérifier** sonnent encore (et toujours les messages).
+- Un rendez-vous **ordinaire** ajouté, modifié ou supprimé **n'envoie plus de notification**. Seuls les rendez-vous **Important** ou **Urgent** (et les notes 🔴 urgentes) sonnent encore (et toujours les messages).
 - À l'ouverture, un bandeau vert **« Du nouveau dans le calendrier »** apparaît sur l'accueil : le toucher ouvre la liste des derniers changements (ajouté / modifié / supprimé, par qui, quand) ; la croix ✕ le ferme. Aussi dans l'Agenda : bouton **🆕 Derniers ajouts**.
 - Réservé aux parents et aux enfants de 12 ans et plus. Les pastilles vertes signalent ce qui est nouveau.

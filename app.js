@@ -194,7 +194,7 @@ const state = {
   view: 'accueil',
   month: (() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); })(),
   selected: todayStr(),
-  noteImportant: false,
+  noteLevel: 0,
   showDone: false,
   loadedMessages: false,
 };
@@ -376,7 +376,7 @@ const colorPicker = (current) => `<div class="colors">${COLORS.map((c) =>
 
 function evItem(ev, withDate) {
   const meta = [CATEGORIES[ev.category] || '', withDate ? fmtLong(parseYmd(withDate)) : '', ev.repeat && ev.repeat !== 'none' ? '🔁' : '',
-    ev.alert?.on ? '🔔' : '', ev.verify ? '📌 À vérifier' : '', ev.notes ? '📝' : '', ev.images?.length ? `🖼️ ${ev.images.length}` : ''].filter(Boolean).join(' · ');
+    ev.alert?.on ? '🔔' : '', ev.notes ? '📝' : '', ev.images?.length ? `🖼️ ${ev.images.length}` : ''].filter(Boolean).join(' · ');
   const imp = IMPORTANCE[ev.importance || 0];
   return `<button class="ev imp${ev.importance || 0}" style="--c:${esc(evColor(ev))}" data-action="edit-event" data-id="${esc(ev.id)}">
     <span class="ev-time">${ev.allDay || !ev.time ? '<span class="ev-allday">Journée</span>' : `${esc(ev.time)}${ev.end ? `<small>${esc(ev.end)}</small>` : ''}`}</span>
@@ -902,11 +902,11 @@ function onMessages(list) {
 /* ================= Coquille (navigation) ================= */
 // [id, libellé, icône, libellé court (barre du bas), masqué dans la barre du bas du téléphone]
 const NAV = [
-  ['accueil', 'Accueil', 'home'], ['agenda', 'Agenda', 'cal'], ['verif', 'À vérifier', 'verif', 'Vérifier'],
+  ['accueil', 'Accueil', 'home'], ['agenda', 'Agenda', 'cal'],
   ['missions', 'Missions', 'target'], ['edt', 'Emploi du temps', 'book', 'Lycée'], ['messages', 'Messages', 'chat'],
   ['album', 'Album photo', 'photo', 'Album'], ['envies', 'Listes d’envies', 'gift', 'Envies'], ['important', 'Pense-bête', 'star', 'Notes'], ['reglages', 'Réglages', 'gear'],
 ];
-const navBadges = () => ({ agenda: calNews().length, messages: unreadCount() + pollsToVote().length, verif: verifItems().filter((i) => !i.done).length, missions: missionsLeftToday() });
+const navBadges = () => ({ agenda: calNews().length, messages: unreadCount() + pollsToVote().length, missions: missionsLeftToday() });
 const navItems = () => NAV.filter((n) => n[0] !== 'missions' || canSeeMissions());
 function navBtn([id, label, icon, s], short, badges) {
   return `<button class="nav-btn ${state.view === id ? 'active' : ''}" data-action="nav" data-view="${id}">
@@ -969,7 +969,7 @@ function refresh() {
   main.className = entering ? 'enter' : '';
   main.innerHTML = (backend.mode === 'demo'
     ? '<div class="demo-banner">Mode démo — les données restent sur cet appareil. Ajoutez votre configuration Firebase dans <b>config.js</b> pour synchroniser tous les appareils (voir LISEZMOI.md).</div>' : '')
-    + VIEWS[state.view]();
+    + (VIEWS[state.view] && state.view !== 'verif' ? VIEWS[state.view] : VIEWS.accueil)();
 
   for (const [id, v] of Object.entries(kept)) { const el = document.getElementById(id); if (el && el.type !== 'file') el.value = v; }
   if (active) { const el = document.getElementById(active); if (el) { el.focus(); if (el.setSelectionRange && el.value) el.setSelectionRange(el.value.length, el.value.length); } }
@@ -991,7 +991,7 @@ const VIEWS = {
     const map = eventsByDay(t, ymd(addDays(now, 14)));
     const today = map[t] || [];
     const upcoming = Object.keys(map).filter((d) => d > t).sort().slice(0, 7);
-    const important = state.notes.filter((n) => !n.done).sort((a, b) => (b.important ? 1 : 0) - (a.important ? 1 : 0) || b.ts - a.ts).slice(0, 7);
+    const important = state.notes.filter((n) => !n.done).sort(byLevel).slice(0, 7);
     const myMail = inbox().slice(0, 4), unread = inbox().filter(isUnread).length;
     const hello = now.getHours() < 5 ? 'Bonne nuit' : now.getHours() < 18 ? 'Bonjour' : 'Bonsoir';
     const dateTxt = now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -1003,7 +1003,7 @@ const VIEWS = {
       ['jour', '☀️', 'Aujourd’hui', today.length],
       kid && canSeeMissions() ? ['missions', '🎯', 'Missions', nbMissions] : null,
       ['bientot', '📅', 'À venir', 0],
-      ['notes', '⭐', 'Pense-bête', important.filter((n) => n.important).length],
+      ['notes', '⭐', 'Pense-bête', important.filter((n) => noteLevel(n) > 0).length],
       ['messages', '💬', 'Messages', unread],
       ['famille', '👨‍👩‍👧', 'Famille', 0],
     ].filter(Boolean);
@@ -1054,7 +1054,7 @@ const VIEWS = {
       const k = ymd(d), list = map[k] || [], hol = holidayOn(k), fer = ferieOn(k);
       return `<button class="cal-day ${d.getMonth() !== m.getMonth() ? 'out' : ''} ${k === t ? 'today' : ''} ${k === sel ? 'sel' : ''} ${hol ? 'vac' : ''} ${fer ? 'ferie' : ''}" data-action="select-day" data-date="${k}" title="${esc([fer && fer + ' (férié)', hol && hol.name].filter(Boolean).join(' · '))}">
         <span class="num">${d.getDate()}</span>${fer ? `<span class="cal-tag ferie-tag">🇫🇷 ${esc(fer)}</span>` : hol && (k === hol.from || d.getDay() === 1 || d.getDate() === 1) ? `<span class="cal-tag vac-tag">🏖️ ${esc(hol.short)}</span>` : ''}
-        ${list.slice(0, 3).map((ev) => `<span class="chip imp${ev.importance || 0}" style="--c:${esc(evColor(ev))}">${ev.verify ? '📌 ' : ''}${ev.allDay || !ev.time ? '' : esc(ev.time) + ' '}${esc(ev.title)}</span>`).join('')}
+        ${list.slice(0, 3).map((ev) => `<span class="chip imp${ev.importance || 0}" style="--c:${esc(evColor(ev))}">${ev.allDay || !ev.time ? '' : esc(ev.time) + ' '}${esc(ev.title)}</span>`).join('')}
         ${list.length > 3 ? `<span class="more">+${list.length - 3}</span>` : ''}
         ${list.length ? `<span class="dots">${list.slice(0, 4).map((ev) => `<span class="dot imp${ev.importance || 0}" style="--c:${esc(evColor(ev))}"></span>`).join('')}</span>` : ''}
       </button>`;
@@ -1159,18 +1159,18 @@ const VIEWS = {
   },
 
   important() {
-    const open = state.notes.filter((n) => !n.done).sort((a, b) => (b.important ? 1 : 0) - (a.important ? 1 : 0) || b.ts - a.ts);
+    const open = state.notes.filter((n) => !n.done).sort(byLevel);
     const done = state.notes.filter((n) => n.done).sort((a, b) => (b.doneTs || 0) - (a.doneTs || 0));
-    return `<div class="view-head"><div><div class="eyebrow">Ce qu’il ne faut pas oublier</div><h1>Pense-bête</h1></div></div>
+    return `<div class="view-head"><div><div class="eyebrow">Une idée à ne pas oublier · 🟢 normal 🟠 important 🔴 urgent</div><h1>Pense-bête</h1></div></div>
       <form class="note-add" id="note-form">
-        <input type="text" id="note-input" placeholder="Choses importantes, courses, à faire…" maxlength="300">
-        <button type="button" class="toggle-imp ${state.noteImportant ? 'on' : ''}" data-action="toggle-imp">★ Important</button>
+        <input type="text" id="note-input" placeholder="Une idée à ne pas oublier…" maxlength="300">
+        <div class="lv-pick">${NOTE_LEVELS.map(([l, e], i) => `<button type="button" class="lv-opt lv${i} ${(state.noteLevel || 0) === i ? 'on' : ''}" data-action="note-level" data-lv="${i}">${e} ${l}</button>`).join('')}</div>
         <label class="btn btn-icon-txt" title="Ajouter une image">📷<input type="file" class="note-att-input" accept="image/*" multiple hidden></label>
         <button class="btn btn-primary">${ICON.plus} Ajouter</button>
         ${state.noteAtt?.length ? `<div class="att-list">${state.noteAtt.map((im) => `<span class="att-item"><img src="${esc(im.thumb)}" alt=""><button type="button" data-action="note-att-del" data-id="${esc(im.id)}" aria-label="Retirer">✕</button></span>`).join('')}</div>` : ''}
       </form>
       <div class="list">${open.map(noteItem).join('') || '<div class="empty">Rien à faire, profitez-en !</div>'}</div>
-      ${done.length ? `<div class="section-title"><span>Terminé (${done.length})</span><span>
+      ${done.length ? `<div class="section-title"><span>✓ Validé (${done.length})</span><span>
         <button class="btn btn-sm" data-action="toggle-done">${state.showDone ? 'Masquer' : 'Afficher'}</button>
         <button class="btn btn-sm btn-danger" data-action="clear-done">Tout effacer</button></span></div>
         ${state.showDone ? `<div class="list">${done.map(noteItem).join('')}</div>` : ''}` : ''}`;
@@ -1814,13 +1814,17 @@ function confetti(emojis) {
   setTimeout(() => box.remove(), 2600);
 }
 
+// Pense-bête : une idée à ne pas oublier, sans date ni catégorie. Couleur : 🟢 normal, 🟠 important, 🔴 urgent.
+const NOTE_LEVELS = [['Normal', '🟢'], ['Important', '🟠'], ['Urgent', '🔴']];
+const noteLevel = (n) => (n.level ?? (n.important ? 1 : 0));
+const byLevel = (a, b) => noteLevel(b) - noteLevel(a) || b.ts - a.ts;
 function noteItem(n) {
-  const a = member(n.author);
-  return `<div class="note ${n.important ? 'imp' : ''} ${n.done ? 'done' : ''}">
-    <button class="check" data-action="toggle-note" data-id="${esc(n.id)}" aria-label="Fait">${n.done ? ICON.check : ''}</button>
-    <div class="note-text">${esc(n.text)}${n.images?.length ? `<div class="att-thumbs">${n.images.map((im) => `<button class="att-thumb" data-action="open-att" data-id="${esc(im.id)}"><img src="${esc(im.thumb)}" alt=""></button>`).join('')}</div>` : ''}
-      <div class="note-meta">${esc(a.name)} · ${new Date(n.ts).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}</div></div>
-    <button class="star" data-action="star-note" data-id="${esc(n.id)}" aria-label="Important">${n.important ? '★' : '☆'}</button>
+  const lv = noteLevel(n), by = n.doneBy ? member(n.doneBy) : null;
+  return `<div class="note lv${lv} ${n.done ? 'done' : ''}">
+    <button class="check" data-action="toggle-note" data-id="${esc(n.id)}" aria-label="Valider">${n.done ? ICON.check : ''}</button>
+    <div class="note-text">${n.done ? `<span class="note-stamp">✓ VALIDÉ${by ? ' · ' + esc(by.name) : ''}</span>` : ''}${esc(n.text)}${n.images?.length ? `<div class="att-thumbs">${n.images.map((im) => `<button class="att-thumb" data-action="open-att" data-id="${esc(im.id)}"><img src="${esc(im.thumb)}" alt=""></button>`).join('')}</div>` : ''}
+      <div class="note-meta">${esc(member(n.author).name)}</div></div>
+    <button class="lv-dot" data-action="star-note" data-id="${esc(n.id)}" aria-label="Changer la couleur" title="${NOTE_LEVELS[lv][0]} — toucher pour changer">${NOTE_LEVELS[lv][1]}</button>
     <button class="del" data-action="del-note" data-id="${esc(n.id)}" aria-label="Supprimer">${ICON.trash}</button>
   </div>`;
 }
@@ -1847,8 +1851,6 @@ function openEventModal(ev, date, { verify = false } = {}) {
       <label class="field ${(ev.repeat || 'none') === 'none' ? 'hidden' : ''}" id="until-f"><span>Jusqu’au (facultatif)</span><input type="date" name="until" value="${esc(ev.until || '')}"></label></div>
     <div class="field"><span>Qui est concerné ? (personne = toute la famille)</span><div class="who">
       ${state.members.filter((m) => !isMaison(m)).map((m) => `<button type="button" class="who-chip ${who.has(m.id) ? 'on' : ''}" style="--c:${esc(m.color)}" data-action="toggle-who" data-id="${esc(m.id)}">${esc(m.name)}</button>`).join('')}</div></div>
-    <label class="verif-flag"><input type="checkbox" name="verify" ${ev.verify ? 'checked' : ''}><div><b>📌 À vérifier — très important</b>
-      <div class="small" style="margin-top:2px">Apparaît dans le calendrier <u>et</u> dans l’onglet « À vérifier », jusqu’à ce que quelqu’un coche « C’est fait » (tampon VALIDÉ).</div></div></label>
     <div class="alert-box ${al.on ? 'on' : ''}">
       <label class="check-line" style="margin:0"><input type="checkbox" name="alertOn" ${al.on ? 'checked' : ''}> 🔔 <b>Alerte</b> <span class="small muted">— recevoir un rappel</span></label>
       <div class="alert-opts ${al.on ? '' : 'hidden'}">
@@ -1888,7 +1890,7 @@ async function submitEvent(form) {
     time: fd.get('allDay') ? '' : fd.get('time'), end: fd.get('allDay') ? '' : fd.get('end'),
     category: fd.get('category'), repeat, until: repeat === 'none' ? '' : fd.get('until') || '', notes: fd.get('notes').trim(),
     importance: Number(form.dataset.imp) || 0,
-    verify: !!fd.get('verify'),
+    verify: false,
     who: [...form.querySelectorAll('.who-chip.on:not(.alert-to)')].map((b) => b.dataset.id),
   };
   if (!data.title || !data.date) return;
@@ -1909,7 +1911,7 @@ async function submitEvent(form) {
   logActivity(id ? 'edit' : 'add', { ...data, id });
   const when = `${cap(parseYmd(data.date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }))}${data.allDay || !data.time ? '' : ' à ' + data.time}`;
   // Notification seulement pour ce qui compte (Important, Urgent, À vérifier) ; le reste va dans « Du nouveau dans le calendrier ».
-  if (data.importance >= 1 || data.verify) notify('all', { title: `${data.verify ? '📌' : '📅'} ${id ? 'Modifié' : 'Nouveau'} : ${data.title}`, body: `${when} — par ${state.me.name}`, tag: 'ev-' + (id || data.title), view: data.verify ? 'verif' : 'agenda' });
+  if (data.importance >= 1 || data.verify) notify('all', { title: `📅 ${id ? 'Modifié' : 'Nouveau'} : ${data.title}`, body: `${when} — par ${state.me.name}`, tag: 'ev-' + (id || data.title), view: 'agenda' });
   state.selected = data.date;
   closeModal();
   toast(id ? 'Rendez-vous modifié' : 'Rendez-vous ajouté — visible sur tous les appareils');
@@ -2205,9 +2207,13 @@ const ACTIONS = {
     else state.month = new Date(state.month.getFullYear(), state.month.getMonth() + n, 1);
     refresh();
   },
-  'toggle-imp'() { state.noteImportant = !state.noteImportant; refresh(); },
-  'toggle-note'(el) { const n = state.notes.find((x) => x.id === el.dataset.id); if (n) save(backend.update('notes', n.id, { done: !n.done, doneTs: Date.now() })); },
-  'star-note'(el) { const n = state.notes.find((x) => x.id === el.dataset.id); if (n) save(backend.update('notes', n.id, { important: !n.important })); },
+  'toggle-note'(el) {
+    const n = state.notes.find((x) => x.id === el.dataset.id);
+    if (n) save(backend.update('notes', n.id, { done: !n.done, doneTs: Date.now(), doneBy: n.done ? null : state.me.id }));
+    if (n && !n.done) toast('✅ Validé — tout le monde le voit');
+  },
+  'star-note'(el) { const n = state.notes.find((x) => x.id === el.dataset.id); if (n) save(backend.update('notes', n.id, { level: (noteLevel(n) + 1) % 3, important: noteLevel(n) + 1 === 1 || noteLevel(n) + 1 === 2 })); },
+  'note-level'(el) { state.noteLevel = Number(el.dataset.lv); refresh(); },
   'del-note'(el) {
     const n = state.notes.find((x) => x.id === el.dataset.id);
     (n?.images || []).forEach((im) => save(backend.remove('attachments', im.id)));
@@ -2249,7 +2255,7 @@ const ACTIONS = {
 
 // Actions interdites aux moins de 13 ans (agenda, à vérifier, emploi du temps, pense-bête, famille).
 const YOUNG_BLOCKED = new Set(['photo-del', 'new-event', 'delete-event', 'new-verif', 'verif-done', 'verif-undo', 'edit-course', 'edt-slot', 'open-absence', 'end-absence',
-  'del-edt-note', 'edt-settings', 'toggle-note', 'star-note', 'del-note', 'clear-done', 'toggle-imp', 'add-member', 'add-maison', 'add-member-start', 'delete-member']);
+  'del-edt-note', 'edt-settings', 'toggle-note', 'star-note', 'del-note', 'clear-done', 'note-level', 'add-member', 'add-maison', 'add-member-start', 'delete-member']);
 const YOUNG_FORMS = new Set(['event-form', 'note-form', 'course-form', 'edt-note-form', 'absence-form', 'edt-settings-form']);
 const youngNo = () => toast('🔒 Réservé aux plus de 13 ans — demande à un parent 😉');
 document.addEventListener('click', (e) => {
@@ -2348,11 +2354,12 @@ document.addEventListener('submit', async (e) => {
     if (!text && !state.noteAtt?.length) return;
     input.value = '';
     const images = await saveAttachments(state.noteAtt || []);
-    save(backend.add('notes', { text: text || '📷 Image', images, important: state.noteImportant, done: false, author: state.me.id, ts: Date.now() }));
+    const level = state.noteLevel || 0;
+    save(backend.add('notes', { text: text || '📷 Image', images, level, important: level > 0, done: false, author: state.me.id, ts: Date.now() }));
     state.noteAtt = [];
-    if (state.noteImportant) notify('all', { title: `⭐ À ne pas oublier`, body: `${text} — ${state.me.name}`, tag: 'note', view: 'important' });
+    if (level === 2) notify('all', { title: `🔴 À ne pas oublier`, body: `${text} — ${state.me.name}`, tag: 'note', view: 'important' });
     const ni = $('#note-input'); if (ni) ni.value = '';
-    state.noteImportant = false; refresh();
+    state.noteLevel = 0; refresh();
   } else if (f.id === 'member-form') submitMember(f);
   else if (f.id === 'family-form') $('#f-name').blur();
 });
@@ -2665,7 +2672,7 @@ function openCalNews() {
       const m = member(a.by), d = a.date ? cap(parseYmd(a.date).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })) : '';
       return `<button class="news-item ${a.ts > seen ? 'new' : ''} ${a.kind === 'del' ? 'del' : ''}" ${a.kind === 'del' || !a.date ? 'disabled' : `data-action="cal-news-go" data-date="${esc(a.date)}"`}>
         <span class="ni-ico">${K[a.kind]?.[0] || '•'}</span>
-        <span class="ni-body"><b>${a.imp === 2 ? '🔴 ' : a.imp === 1 ? '❗ ' : ''}${a.verify ? '📌 ' : ''}${esc(a.title)}</b>
+        <span class="ni-body"><b>${a.imp === 2 ? '🔴 ' : a.imp === 1 ? '❗ ' : ''}${esc(a.title)}</b>
           <small>${K[a.kind]?.[1] || ''} · ${esc(d)}${a.time ? ' à ' + esc(a.time) : ''}</small>
           <small class="muted">par ${esc(m.name)} · ${esc(ago(a.ts))}</small></span>
         ${a.ts > seen ? '<span class="ni-new">Nouveau</span>' : ''}</button>`;

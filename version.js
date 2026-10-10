@@ -2,6 +2,12 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '3.4', date: '2026-10-11', title: '⭐ Pense-bête simplifié',
+    items: ['L’onglet « À vérifier » est retiré : le pense-bête fait la même chose, en plus simple',
+      'Pense-bête : une idée à ne pas oublier, sans date ni catégorie, avec une couleur 🟢 normal, 🟠 important ou 🔴 urgent (toucher la pastille pour changer)',
+      'Cocher une note pose un tampon « ✓ VALIDÉ » avec le prénom de celui qui l’a fait'],
+  },
+  {
     version: '3.3.1', date: '2026-10-11', title: '🩹 Ouverture depuis le raccourci corrigée',
     items: ['Corrige « Ce site est inaccessible » à l’ouverture depuis l’icône de l’écran d’accueil'],
   },
