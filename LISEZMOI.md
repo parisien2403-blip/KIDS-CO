@@ -132,3 +132,6 @@ Ensuite, sur chaque appareil : *Réglages → Notifications → Activer* (sur iP
 - En collant un autocollant, choisissez un **thème** : classiques, super-héros, K-pop & chasseuses de démons, princesses & magie, dinosaures, espace, sport, animaux, gourmandises. L'appli retient le thème préféré de chaque enfant.
 - **📷 Mes autocollants** : ajoutez vos propres images (personnage préféré, photo…). Elles restent privées dans la famille ; ✕ pour en supprimer une.
 - **Vos propres thèmes** : « ＋ Nouveau thème » (ex. *Toy Story*), puis « ＋ Ajouter des images » avec une photo de **planche d'autocollants** : l'appli découpe chaque autocollant toute seule (fond uni). Touchez un cadre pour le garder ou l'enlever ; glissez le doigt pour tracer un cadre à la main (fond non uni, capture d'écran…). Cochez « N'afficher que nos thèmes » pour remplacer les thèmes intégrés.
+
+### 🎨 Thèmes de saison
+L'appli change de décor toute seule selon la date : 🎄 Noël (1er déc. → 2 janv.), 🎃 Halloween (20 oct. → 2 nov.), 🥞 Chandeleur (30 janv. → 3 fév.), puis 🌸 printemps, ☀️ été, 🍂 automne et ❄️ hiver. Les images sont dans le dossier `saisons/` (une sous-dossier par thème). Pour essayer un thème : ajouter `?saison=noel` (ou `halloween`, `ete`…) à l'adresse.

@@ -2,6 +2,12 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '3.9', date: '2026-10-11', title: '🎨 Thèmes de saison',
+    items: ['L’appli change de décor toute seule : Noël, Halloween, Chandeleur, printemps, été, automne, hiver',
+      'Fond, barre du haut, horloge, tableau, gros boutons et barre du bas habillés selon la période',
+      'Noël : compte à rebours « Plus que X dodos avant Noël »'],
+  },
+  {
     version: '3.8', date: '2026-10-11', title: '🎨 Seulement vos autocollants',
     items: ['Les autocollants intégrés sont retirés : seuls ceux de la famille s’affichent, rangés par thème',
       '📦 Importer un pack d’autocollants (fichier .json) en un toucher'],

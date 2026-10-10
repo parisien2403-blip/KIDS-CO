@@ -3,6 +3,7 @@
 // Les données passent par Firebase (voir config.js) ; sans configuration, mode démo local.
 import { firebaseConfig } from './config.js';
 import { APP_VERSION, CHANGELOG } from './version.js';
+import { SCENES, FX } from './saisons.js';
 
 /* ================= Utilitaires ================= */
 const $ = (s, r = document) => r.querySelector(s);
@@ -935,7 +936,57 @@ function openNavMore() {
       ${ICON[icon]}<span>${label}</span>${badges[id] ? `<span class="badge">${badges[id]}</span>` : ''}</button>`).join('')}</div>
   </div></div>`;
 }
+/* ================= 🎨 Décor selon la saison et les fêtes ================= */
+// Été, automne, hiver, printemps + Noël, Halloween et Chandeleur : couleurs, petite animation et bandeau.
+const SEASONS = {
+  printemps: { name: 'Printemps', fx: ['🌸', '🌷', '🦋', '🌼'], move: 'float', msg: '🌸 C’est le printemps !' },
+  ete: { name: 'Été', fx: ['☀️', '🌊', '🍉', '🐚', '🏖️'], move: 'float', msg: '☀️ Bel été à toute la famille !' },
+  automne: { name: 'Automne', fx: ['🍂', '🍁', '🍄', '🌰'], move: 'fall', msg: '🍂 Bel automne !' },
+  hiver: { name: 'Hiver', fx: ['❄️', '❄', '⛄', '❅'], move: 'fall', msg: '❄️ Bien au chaud cet hiver !' },
+  noel: { name: 'Noël', fx: ['❄️', '⭐', '🎁', '❅', '🎄'], move: 'fall', msg: '' },
+  halloween: { name: 'Halloween', fx: ['🦇', '🎃', '👻', '🕸️', '🍬'], move: 'float', msg: '🎃 Joyeux Halloween ! Bonbons ou sorts ?' },
+  chandeleur: { name: 'Chandeleur', fx: ['🥞', '🍯', '🍓', '🍫'], move: 'fall', msg: '🥞 C’est la Chandeleur : soirée crêpes !' },
+};
+function currentSeason(d = new Date()) {
+  const forced = new URLSearchParams(location.search).get('saison') || state.edtConfig?.season;
+  if (forced && SEASONS[forced]) return forced;
+  if (state.edtConfig?.seasonOff) return null;
+  const md = (d.getMonth() + 1) * 100 + d.getDate();
+  if (md >= 1201 || md <= 102) return 'noel';
+  if (md >= 1020 && md <= 1102) return 'halloween';
+  if (md >= 130 && md <= 203) return 'chandeleur';
+  if (md >= 320 && md < 621) return 'printemps';
+  if (md >= 621 && md < 922) return 'ete';
+  if (md >= 922 && md < 1221) return 'automne';
+  return 'hiver';
+}
+function applySeason() {
+  const k = currentSeason(), root = document.documentElement;
+  if (root.dataset.season === (k || '')) return;
+  root.dataset.season = k || '';
+  document.getElementById('season-fx')?.remove();
+  // Animation discrète seulement quand ça a du sens (neige, feuilles) : le décor est déjà dans le thème.
+  if (!['noel', 'hiver', 'automne'].includes(k) || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const F = FX[k], fx = document.createElement('div');
+  fx.id = 'season-fx'; fx.className = 'season-fx ' + F.move; fx.setAttribute('aria-hidden', 'true');
+  fx.innerHTML = Array.from({ length: 10 }, (_, i) => `<span style="left:${(i * 7.3 + (i % 3) * 2.1) % 100}%;top:${F.move === 'wind' ? (i * 13) % 90 : ''}%;animation-delay:${-((i * 2.7) % 16)}s;animation-duration:${11 + (i * 3.1) % 10}s;width:${22 + (i * 7) % 22}px">${F.items[i % F.items.length]}</span>`).join('');
+  document.body.append(fx);
+}
+function seasonBanner() {
+  const k = currentSeason();
+  if (!k) return '';
+  let msg = SEASONS[k].msg;
+  if (k === 'noel') {
+    const now = new Date(), y = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+    const days = Math.ceil((new Date(y, 11, 25) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 864e5);
+    msg = days > 0 ? `🎄 Plus que <b>${days} dodo${days > 1 ? 's' : ''}</b> avant Noël !` : days === 0 ? '🎅 Joyeux Noël à toute la famille !' : '✨ Bonnes fêtes de fin d’année !';
+  }
+  return k === 'noel' ? `<div class="season-chip">${msg}</div>` : '';
+}
+setInterval(applySeason, 3600000);
+
 function renderShell() {
+  applySeason();
   $('#app').innerHTML = `<div class="shell">
     <nav class="sidebar"><div class="brand"><img src="logo.png" alt=""><span class="brand-name">Kids &amp; Co</span><small id="fam-name">${esc(state.family.name)}</small></div>
       <div id="nav-side"></div>
@@ -1037,9 +1088,10 @@ const VIEWS = {
         <div class="hero">
           <div class="greet">${hello} ${isMaison(state.me) ? 'la famille' : esc(state.me.name)}</div>
           <div class="clock" id="clock">${clockHtml(now)}</div>
-          <div class="today-label">${esc(dateTxt)}</div></div></div>
+          <div class="today-label">${esc(dateTxt)}</div>${seasonBanner()}</div>
+        <div class="hero-frame" aria-hidden="true"></div></div>
       ${calNewsBanner()}
-      <nav class="home-tabs" role="tablist">${TABS.map(([id, emo, label, n]) => `<button class="home-tab ${id === tab ? 'on' : ''}" role="tab" aria-selected="${id === tab}" data-action="home-tab" data-tab="${id}">
+      <nav class="home-tabs" role="tablist">${TABS.map(([id, emo, label, n]) => `<button class="home-tab ht-${id} ${id === tab ? 'on' : ''}" role="tab" aria-selected="${id === tab}" data-action="home-tab" data-tab="${id}">
         <span class="ht-emo">${emo}</span><span class="ht-label">${label}</span>${n ? `<span class="ht-badge">${n}</span>` : ''}</button>`).join('')}</nav>
       <div class="home-panel">${panels[tab]()}</div>`;
   },
