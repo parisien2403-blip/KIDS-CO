@@ -357,6 +357,61 @@ function updatePhotoCss() {
   el.textContent = state.members.filter(hasPhoto).map((m) => `.ph-${cssId(m.id)}{background-image:url("${m.photo}")}`).join('\n');
 }
 // Recadre la photo en carré et la réduit (≈ 25 Ko) pour qu'elle se synchronise vite.
+// Recadrage de la photo : on la déplace avec le doigt et on zoome, pour qu'elle ne soit pas coupée.
+let photoFile = null;
+function cropPhoto(file, size = 360) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onerror = () => { URL.revokeObjectURL(url); toast('Impossible de lire cette photo, essayez-en une autre.', true); resolve(null); };
+    img.onload = () => {
+      const V = Math.min(300, innerWidth - 60), iw = img.naturalWidth, ih = img.naturalHeight;
+      const minZ = V / Math.min(iw, ih); // la photo couvre toujours le cadre
+      let z = minZ, x = (V - iw * z) / 2, y = (V - ih * z) / 2;
+      const ov = document.createElement('div');
+      ov.className = 'crop-overlay';
+      ov.innerHTML = `<div class="crop-box"><h2>✂️ Ajuster la photo</h2>
+        <p class="small muted">Glissez la photo avec le doigt, zoomez avec le curseur (ou deux doigts).</p>
+        <div class="crop-view" style="width:${V}px;height:${V}px"><img src="${url}" alt="" draggable="false"><div class="crop-mask"></div></div>
+        <div class="crop-zoom"><span>➖</span><input type="range" min="1" max="4" step="0.01" value="1" aria-label="Zoom"><span>➕</span></div>
+        <div class="modal-actions"><button type="button" class="btn" data-c="rot">↻ Tourner</button><span class="grow"></span>
+          <button type="button" class="btn" data-c="no">Annuler</button><button type="button" class="btn btn-primary" data-c="ok">Valider</button></div></div>`;
+      document.body.append(ov);
+      const view = ov.querySelector('.crop-view'), im = view.querySelector('img'), range = ov.querySelector('input');
+      let rot = 0; // en quarts de tour
+      const dims = () => (rot % 2 ? [ih, iw] : [iw, ih]);
+      const clamp = () => { const [w, h] = dims(); x = Math.min(0, Math.max(V - w * z, x)); y = Math.min(0, Math.max(V - h * z, y)); };
+      const draw = () => { clamp(); const [w, h] = dims(); im.style.width = iw * z + 'px'; im.style.height = ih * z + 'px';
+        im.style.transform = `translate(${x + (w - iw) * z / 2}px,${y + (h - ih) * z / 2}px) rotate(${rot * 90}deg)`; };
+      const zoomAt = (nz, cx = V / 2, cy = V / 2) => { const [w, h] = dims(); const base = V / Math.min(w, h); nz = Math.max(base, Math.min(base * 4, nz)); x = cx - (cx - x) * nz / z; y = cy - (cy - y) * nz / z; z = nz; range.value = z / base; draw(); };
+      draw();
+      const pts = new Map(); let last = null, lastDist = 0;
+      view.addEventListener('pointerdown', (e) => { view.setPointerCapture(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]); last = [e.clientX, e.clientY]; if (pts.size === 2) { const [a, b] = [...pts.values()]; lastDist = Math.hypot(a[0] - b[0], a[1] - b[1]); } });
+      view.addEventListener('pointermove', (e) => {
+        if (!pts.has(e.pointerId)) return; pts.set(e.pointerId, [e.clientX, e.clientY]);
+        if (pts.size === 2) { const [a, b] = [...pts.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]); if (lastDist) zoomAt(z * d / lastDist); lastDist = d; return; }
+        x += e.clientX - last[0]; y += e.clientY - last[1]; last = [e.clientX, e.clientY]; draw();
+      });
+      const up = (e) => { pts.delete(e.pointerId); lastDist = 0; if (pts.size === 1) last = [...pts.values()][0]; };
+      view.addEventListener('pointerup', up); view.addEventListener('pointercancel', up);
+      view.addEventListener('wheel', (e) => { e.preventDefault(); const r = view.getBoundingClientRect(); zoomAt(z * (e.deltaY < 0 ? 1.08 : 1 / 1.08), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+      range.addEventListener('input', () => { const [w, h] = dims(); zoomAt((V / Math.min(w, h)) * Number(range.value)); });
+      const end = (val) => { ov.remove(); URL.revokeObjectURL(url); resolve(val); };
+      ov.addEventListener('click', (e) => {
+        const c = e.target.closest('[data-c]')?.dataset.c;
+        if (c === 'no') end(null);
+        if (c === 'rot') { rot = (rot + 1) % 4; const [w, h] = dims(); z = V / Math.min(w, h); range.value = 1; x = (V - w * z) / 2; y = (V - h * z) / 2; draw(); }
+        if (c === 'ok') {
+          const cv = document.createElement('canvas'); cv.width = cv.height = size; const g = cv.getContext('2d'), k = size / V, [w, h] = dims();
+          g.fillStyle = '#fff'; g.fillRect(0, 0, size, size);
+          g.translate((x + w * z / 2) * k, (y + h * z / 2) * k); g.rotate(rot * Math.PI / 2);
+          g.drawImage(img, -iw * z * k / 2, -ih * z * k / 2, iw * z * k, ih * z * k);
+          end(cv.toDataURL('image/jpeg', 0.85));
+        }
+      });
+    };
+    img.src = url;
+  });
+}
 function readPhoto(file, size = 320) {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file), img = new Image();
@@ -671,7 +726,7 @@ function openMemberModal(m, { first = false, role } = {}) {
   const isNew = !m || !m.id;
   const meParent = first || isParent(state.me);
   m = m || { name: '', lastName: '', role: first ? 'parent' : role || 'enfant', color: COLORS[state.members.length % COLORS.length], emoji: '' };
-  memberPhoto = undefined;
+  memberPhoto = undefined; photoFile = null;
   const r = isMaison(m) ? 'maison' : isParent(m) ? 'parent' : 'enfant';
   const maisonTaken = state.members.some((x) => isMaison(x) && x.id !== m.id);
   const canRole = meParent && !first;
@@ -686,6 +741,7 @@ function openMemberModal(m, { first = false, role } = {}) {
       <span class="photo-preview${hasPhoto(m) ? ` photo ph-${cssId(m.id)}` : ''}" id="photo-preview" style="--c:${esc(m.color)}">${faceText(m)}</span>
       <div class="photo-actions">
         <label class="btn btn-primary btn-sm">📷 Prendre ou choisir une photo<input type="file" id="photo-input" accept="image/*" hidden></label>
+        <button type="button" class="btn btn-sm ${hasPhoto(m) ? '' : 'hidden'}" id="photo-adjust" data-action="adjust-photo">✂️ Recadrer</button>
         <button type="button" class="btn btn-sm btn-danger ${hasPhoto(m) ? '' : 'hidden'}" id="photo-remove" data-action="remove-photo">Retirer la photo</button>
         <span class="small muted">La photo apparaît sur la carte Kids &amp; Co et à côté de vos messages.</span>
       </div>
@@ -2378,6 +2434,11 @@ const ACTIONS = {
     const name = (prompt('Nom du nouveau thème (ex. Toy Story, Spidey, K-pop…) :') || '').trim().slice(0, 24);
     if (name) openStickerPicker(el.dataset.kid, el.dataset.date, 'own:' + name);
   },
+  async 'adjust-photo'() {
+    let f = photoFile;
+    if (!f) { const m = member($('#member-form')?.dataset.id); if (!hasPhoto(m)) return; f = await (await fetch(m.photo)).blob(); }
+    const r = await cropPhoto(f); if (r) { memberPhoto = r; updatePhotoPreview(); }
+  },
   'pick-sticker'(el) { closeModal(); setSticker(el.dataset.kid, el.dataset.date, el.dataset.type); },
   'manage-missions'(el) { openManageMissions(el.dataset.id); },
   'add-task'(el) {
@@ -2584,7 +2645,7 @@ document.addEventListener('change', async (e) => {
     return;
   }
   if (t.id === 'photo-input' && t.files && t.files[0]) {
-    try { memberPhoto = await readPhoto(t.files[0]); updatePhotoPreview(); }
+    try { photoFile = t.files[0]; const r = await cropPhoto(photoFile); if (r) { memberPhoto = r; updatePhotoPreview(); $('#photo-adjust')?.classList.remove('hidden'); } }
     catch { toast('Impossible de lire cette photo, essayez-en une autre.', true); }
     t.value = '';
   }

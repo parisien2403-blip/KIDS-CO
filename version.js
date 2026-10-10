@@ -2,6 +2,10 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '3.9.2', date: '2026-10-11', title: '✂️ Recadrer la photo',
+    items: ['Après avoir choisi une photo de profil, on peut la déplacer, zoomer et la tourner pour qu’elle ne soit pas coupée', 'Bouton « ✂️ Recadrer » pour ajuster une photo déjà en place'],
+  },
+  {
     version: '3.9.1', date: '2026-10-11', title: '🔒 Écran de code aux couleurs de la saison',
     items: ['L’écran de verrouillage (code secret) et l’écran de connexion prennent aussi le thème de la saison'],
   },
