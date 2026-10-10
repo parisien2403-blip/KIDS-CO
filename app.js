@@ -675,6 +675,21 @@ function startAs(m, { quiet = false } = {}) {
   else if (lockCfg().on) showLock(); // réouverture de l'appli : on demande le code
 }
 
+// 📱 Appareil partagé (ex. une tablette pour Alice et Adam) : chacun garde son compte,
+// et on passe de l'un à l'autre d'un toucher, sans code. Réglage propre à cet appareil (choisi par un parent).
+const sharedKey = () => 'kc-shared-device:' + (state.family?.id || '');
+const sharedIds = () => { try { return JSON.parse(ls.get(sharedKey())) || []; } catch { return []; } };
+const sharedOthers = () => { const ids = sharedIds(); return state.me && ids.includes(state.me.id) ? ids.filter((id) => id !== state.me.id).map((id) => state.members.find((m) => m.id === id)).filter(Boolean) : []; };
+function sharedCard() {
+  if (!state.me || (!isParent(state.me) && !sharedIds().includes(state.me.id))) return '';
+  const ids = new Set(sharedIds()), kids = state.members.filter((m) => !isMaison(m));
+  return `<section class="card"><h2 style="margin-bottom:4px">📱 Appareil partagé</h2>
+    <p class="muted small" style="margin:0 0 10px">Plusieurs enfants sur une seule tablette ? Choisissez-les : chacun garde son compte (missions, étoiles, messages) et on passe de l’un à l’autre d’un toucher sur sa photo en haut, sans code. Réglage valable sur cet appareil uniquement.</p>
+    ${isParent(state.me) ? `<div class="who">${kids.map((m) => `<button type="button" class="who-chip ${ids.has(m.id) ? 'on' : ''}" style="--c:${esc(m.color)}" data-action="share-pick" data-id="${esc(m.id)}">${avatar(m)} ${esc(m.name)}</button>`).join('')}</div>
+      ${ids.size ? '<button class="btn btn-sm" data-action="share-clear" style="margin-top:10px">Ne plus partager cet appareil</button>' : ''}`
+      : `<p class="small">Partagé avec : <b>${[...ids].map((id) => esc(member(id).name)).join(', ')}</b></p>`}</section>`;
+}
+
 function switchUser() {
   ls.del(profileKey());
   renderWho();
@@ -1052,6 +1067,7 @@ function renderShell() {
       <div class="me-card" id="me-card"></div>
       <button class="app-version" data-action="whats-new">Version ${APP_VERSION} · Nouveautés</button></nav>
     <header class="topbar"><img src="logo.png" alt=""><div><span class="brand-name">Kids &amp; Co <button class="ver-badge" data-action="whats-new" title="Nouveautés">v${APP_VERSION}</button></span><small id="fam-name-top">${esc(state.family.name)}</small></div>
+      <span id="share-top"></span>
       <button class="upd-btn ${updateAvail ? 'has' : ''}" data-action="update-now" aria-label="Mettre à jour l’appli" title="Mettre à jour"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></button>
       <button class="me-btn" data-action="nav" data-view="reglages" aria-label="Mon compte et réglages" id="me-btn"></button></header>
     <main id="main"></main>
@@ -1071,7 +1087,10 @@ function refresh() {
   $('#fam-name').textContent = state.family.name;
   $('#fam-name-top').textContent = state.family.name;
   $('#me-btn').innerHTML = avatar(state.me);
-  $('#me-card').innerHTML = `<div class="me-label">Connecté sur cet appareil</div>${miniCard(state.me)}
+  const others = sharedOthers();
+  const sw = others.length ? `<div class="share-sw">${others.map((m) => `<button class="share-face" data-action="share-switch" data-id="${esc(m.id)}" title="Passer sur le compte de ${esc(m.name)}" aria-label="Passer sur le compte de ${esc(m.name)}">${avatar(m)}<span>${esc(m.name)}</span></button>`).join('')}</div>` : '';
+  $('#share-top').innerHTML = sw;
+  $('#me-card').innerHTML = `<div class="me-label">Connecté sur cet appareil</div>${miniCard(state.me)}${sw ? `<div class="me-label" style="margin-top:8px">Changer en un toucher</div>${sw}` : ''}
     <button class="btn btn-sm" data-action="switch-user" style="width:100%">Changer d’utilisateur</button>`;
   document.title = (unreadCount() ? `(${unreadCount()}) ` : '') + 'Kids & Co';
 
@@ -1359,6 +1378,7 @@ const VIEWS = {
           <div class="small muted" style="margin-top:10px">${state.me.pinHash ? '🔒 Protégé par un code secret' : 'Sans code secret'}</div>
           <div class="quick" style="margin-top:12px"><button class="btn btn-primary btn-sm" data-action="edit-member" data-id="${esc(state.me.id)}">Modifier mon compte</button>
             <button class="btn btn-sm" data-action="switch-user">Changer d’utilisateur</button></div></section>
+        ${sharedCard()}
         ${lockCard()}
         <section class="card"><h2 style="margin-bottom:10px">La famille</h2>
           ${state.members.map((m) => `<div class="member-line"><button class="member-open" data-action="show-card" data-id="${esc(m.id)}">${avatar(m)}<div><b>${esc(fullName(m))}</b>${m.id === state.me.id ? ' <span class="muted small">(vous)</span>' : ''}
@@ -2272,6 +2292,15 @@ const ACTIONS = {
     stopSubs(); await backend.signOut();
   },
   'switch-user': () => switchUser(),
+  'share-switch'(el) { const m = state.members.find((x) => x.id === el.dataset.id); if (m && sharedIds().includes(m.id) && sharedIds().includes(state.me?.id)) startAs(m); },
+  'share-pick'(el) {
+    if (!isParent(state.me)) return;
+    const ids = new Set(sharedIds()); ids.has(el.dataset.id) ? ids.delete(el.dataset.id) : ids.add(el.dataset.id);
+    ls.set(sharedKey(), JSON.stringify([...ids])); refresh();
+    if (ids.size === 1) toast('Choisissez au moins deux personnes');
+    else if (ids.size > 1) toast('📱 Cet appareil est partagé entre ' + [...ids].map((id) => member(id).name).join(' et '));
+  },
+  'share-clear'() { ls.del(sharedKey()); refresh(); toast('Appareil non partagé'); },
   'login-maison': () => submitWelcome(true),
   'forgot-pin': () => openForgotPin(),
   'qr-big': () => openQrBig(),

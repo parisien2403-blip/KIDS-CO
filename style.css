@@ -1560,3 +1560,28 @@ html,body{overflow-x:hidden;overflow-x:clip;max-width:100%}
 :root[data-season]:not([data-season='']) .home-tab.ht-missions{aspect-ratio:304/146;min-height:0;padding:4px;gap:0;background:rgba(255,251,242,.95);font-size:clamp(11px,3vw,16px)}
 :root[data-season]:not([data-season='']) .home-tab.ht-missions .ht-emo{font-size:clamp(20px,5.4vw,30px)}
 :root[data-season]:not([data-season='']) .presence-head{background:rgba(255,251,242,.92);border-radius:14px;padding:8px 12px}
+/* 📱 Appareil partagé : photos des autres enfants pour changer en un toucher */
+#share-top{display:flex}
+.share-sw{display:flex;gap:6px}
+.share-face{display:flex;flex-direction:column;align-items:center;gap:1px;border:0;background:rgba(255,255,255,.75);border-radius:14px;padding:3px 5px 2px;cursor:pointer;box-shadow:0 3px 8px -5px rgba(0,0,0,.4)}
+.share-face .avatar{width:30px;height:30px;font-size:14px}
+.share-face span{font-size:10px;font-weight:800;color:#22476B;max-width:52px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.me-card .share-sw{margin:4px 0 8px;flex-wrap:wrap}
+.me-card .share-face{background:var(--field)}
+/* ===== Tailles d'écran : petits téléphones → tablettes → PC ===== */
+.card .quick{display:flex !important;flex-wrap:wrap;gap:8px}
+.card .quick .btn{flex:1 1 auto}
+@media (max-width:400px){.btn{white-space:normal;text-align:center}.view-head{flex-wrap:wrap}}
+/* Gros boutons de l'accueil : toujours 3 par ligne, comme sur les maquettes, sans devenir géants sur PC */
+.home-tabs{grid-template-columns:repeat(3,minmax(0,1fr)) !important;max-width:780px}
+.home-tab{container-type:inline-size}
+:root[data-season]:not([data-season='']) .home-tab.ht-sondages .ht-label,:root[data-season]:not([data-season='']) .home-tab.ht-missions .ht-label{font-size:9cqw !important;line-height:1.1}
+:root[data-season]:not([data-season='']) .home-tab.ht-sondages .ht-emo,:root[data-season]:not([data-season='']) .home-tab.ht-missions .ht-emo{font-size:16cqw !important;line-height:1}
+.home-tab .ht-badge{font-size:12px;min-width:22px;height:22px}
+@media (max-width:400px){:root[data-season]:not([data-season='']) .home-head .greet{font-size:16px}}
+/* Horloge + tableau : largeur raisonnable sur grand écran */
+:root[data-season]:not([data-season='']) .home-head{max-width:780px}
+@media (min-width:761px){:root[data-season]:not([data-season='']) .home-head .clock{font-size:clamp(56px,7vw,96px)}}
+@media (max-width:360px){:root[data-season]:not([data-season='']) .home-head .clock{font-size:40px}:root[data-season]:not([data-season='']) .home-head .today-label{font-size:18px}}
+@media (max-width:400px){.topbar .ver-badge{display:none}.share-face span{display:none}.share-face{padding:3px}}
+.topbar>div{min-width:0}.topbar .brand-name,.topbar small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

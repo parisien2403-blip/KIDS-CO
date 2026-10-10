@@ -140,3 +140,6 @@ L'appli change de décor toute seule selon la date : 🎄 Noël (1er déc. → 2
 - Menu ⋯ → **Jeux**. Un parent (ou un enfant de 13 ans et plus) touche « + Ajouter un jeu » et choisit le fichier (.nes, .sfc, .gb, .gbc, .gba, .md…, 16 Mo max).
 - Le jeu est rangé dans la base Firebase de la famille (mêmes règles de sécurité que le reste : seuls les membres y ont accès), puis disponible sur tous les téléphones. Un toucher sur « Jouer » et il démarre.
 - Émulateur : EmulatorJS (libre), chargé depuis cdn.emulatorjs.org. Les sauvegardes de partie restent sur chaque appareil.
+
+### 📱 Appareil partagé
+Plusieurs enfants sur une seule tablette : *Réglages → 📱 Appareil partagé* (un parent choisit les comptes). Chacun garde son compte ; on passe de l'un à l'autre d'un toucher sur sa photo en haut de l'écran, sans code. Réglage propre à l'appareil.
