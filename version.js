@@ -2,6 +2,12 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '3.2', date: '2026-10-10', title: '🏠 Accueil en onglets, plus simple',
+    items: ['La page d’accueil est rangée en gros onglets : ☀️ Aujourd’hui, 📅 À venir, ⭐ Pense-bête, 💬 Messages, 👨‍👩‍👧 Famille',
+      'Les enfants ont aussi un onglet 🎯 Missions, ouvert directement s’il reste des missions à faire',
+      'Une pastille indique ce qui attend (messages non lus, rendez-vous du jour…) ; l’appli se souvient du dernier onglet choisi'],
+  },
+  {
     version: '3.1.5', date: '2026-10-09', title: '📱 Photos sur iPhone',
     items: ['iPhone : on peut ajouter plusieurs photos à la suite (mémoire libérée après chaque photo, nouvel essai automatique)'],
   },

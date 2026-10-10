@@ -7,7 +7,7 @@ Tout ce qu'un membre ajoute depuis son téléphone (rendez-vous, chose important
 
 | Écran | Contenu |
 |---|---|
-| **Accueil** | Grande horloge, rendez-vous du jour, à venir (2 semaines), « à ne pas oublier », derniers messages. Pensé pour la tablette posée dans la cuisine. |
+| **Accueil** | Grande horloge et gros onglets : ☀️ Aujourd’hui, 🎯 Missions (enfants), 📅 À venir, ⭐ Pense-bête, 💬 Messages, 👨‍👩‍👧 Famille (qui est connecté, album). Pensé pour la tablette posée dans la cuisine. |
 | **Agenda** | Calendrier du mois, ajout/modification de rendez-vous : heure, catégorie (santé, école, anniversaire…), répétition (semaine / mois / année), personnes concernées (chacun a sa couleur), notes. |
 | **Messages** | Discussion de famille en temps réel (Entrée pour envoyer, Maj+Entrée pour aller à la ligne). Pastille de messages non lus. |
 | **Pense-bête** | Choses importantes, courses, tâches : étoile « important », case à cocher, effacer les éléments terminés. |

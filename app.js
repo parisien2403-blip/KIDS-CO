@@ -993,34 +993,49 @@ const VIEWS = {
     const myMail = inbox().slice(0, 4), unread = inbox().filter(isUnread).length;
     const hello = now.getHours() < 5 ? 'Bonne nuit' : now.getHours() < 18 ? 'Bonjour' : 'Bonsoir';
     const dateTxt = now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
-    return `<div class="dash-head">
+    // Page d'accueil en onglets : un sujet à la fois, gros boutons faciles à reconnaître (aussi pour les enfants).
+    const young = isYoung(state.me), kid = young || (state.me.missions && !isParent(state.me));
+    const nbMissions = canSeeMissions() && state.me.missions && !isParent(state.me)
+      ? tasksOf(state.me).filter((task) => !(missionDoc(state.me.id, weekKey(now)).checks?.[t] || []).includes(task)).length : 0;
+    const TABS = [
+      ['jour', '☀️', 'Aujourd’hui', today.length],
+      kid && canSeeMissions() ? ['missions', '🎯', 'Missions', nbMissions] : null,
+      ['bientot', '📅', 'À venir', 0],
+      ['notes', '⭐', 'Pense-bête', important.filter((n) => n.important).length],
+      ['messages', '💬', 'Messages', unread],
+      ['famille', '👨‍👩‍👧', 'Famille', 0],
+    ].filter(Boolean);
+    const saved = ls.get('kc-home-tab-' + state.me.id);
+    const tab = TABS.some((x) => x[0] === saved) ? saved : kid && canSeeMissions() && nbMissions ? 'missions' : 'jour';
+    const mailCard = `<section class="card tint-sky"><div class="card-head"><h2>Ma boîte de réception</h2><button class="btn btn-sm" data-action="nav" data-view="messages">Tout voir</button></div>
+          <div class="list">${myMail.map((m) => mailItem(m, 'in', true)).join('') || '<div class="empty">Aucun message pour vous.</div>'}</div></section>`;
+    const panels = {
+      jour: () => `${holidayCountdown()}
+        ${young ? '' : `<div class="home-actions"><button class="btn btn-primary" data-action="new-event" data-date="${t}">${ICON.plus} Rendez-vous</button></div>`}
+        <div class="dash-grid">
+          <section class="card tint-peach"><div class="card-head"><h2>Aujourd’hui</h2><span class="muted small">${today.length || 'Rien'} prévu${today.length > 1 ? 's' : ''}</span></div>
+            <div class="list">${today.map((ev) => evItem(ev)).join('') || '<div class="empty">Journée libre ☀️</div>'}</div></section>
+          ${edtDashboardCard()}</div>`,
+      missions: () => `<div class="dash-grid">${missionsDashboardCard()}</div>`,
+      bientot: () => `${holidayCountdown()}<div class="dash-grid"><section class="card tint-mint"><div class="card-head"><h2>Les 2 prochaines semaines</h2><button class="btn btn-sm" data-action="nav" data-view="agenda">Agenda</button></div>
+          ${upcoming.map((d) => `<div class="day-group"><h3>${d === ymd(addDays(now, 1)) ? 'Demain' : esc(fmtLong(parseYmd(d)))}</h3>
+            <div class="list">${map[d].map((ev) => evItem(ev)).join('')}</div></div>`).join('') || '<div class="empty">Rien dans les 2 prochaines semaines.</div>'}</section></div>`,
+      notes: () => `${young ? '' : `<div class="home-actions"><button class="btn btn-primary" data-action="nav" data-view="important">${ICON.plus} Ajouter une note</button></div>`}
+        <div class="dash-grid"><section class="card tint-butter"><div class="card-head"><h2>À ne pas oublier</h2><button class="btn btn-sm" data-action="nav" data-view="important">Tout voir</button></div>
+          <div class="list">${important.map(noteItem).join('') || '<div class="empty">Rien à signaler.</div>'}</div></section></div>`,
+      messages: () => `<div class="home-actions"><button class="btn btn-primary" data-action="compose">${ICON.chat} Écrire un message</button>
+          <button class="btn btn-arrive" data-action="arrive">📍 Bien arrivé</button></div>
+        <div class="dash-grid">${mailCard}${pollsDashboardCard()}</div>`,
+      famille: () => `${presenceStrip()}<div class="dash-grid">${kid ? '' : missionsDashboardCard()}${albumDashboardCard()}</div>`,
+    };
+    return `<div class="dash-head home-head">
         <div class="hero">
           <div class="greet">${hello} ${isMaison(state.me) ? 'la famille' : esc(state.me.name)}</div>
           <div class="clock" id="clock">${clockHtml(now)}</div>
-          <div class="today-label">${esc(dateTxt)}</div></div>
-        <div class="quick">
-          <button class="btn btn-primary" data-action="new-event" data-date="${t}">${ICON.plus} Rendez-vous</button>
-          <button class="btn" data-action="nav" data-view="important">${ICON.star} Pense-bête</button>
-          <button class="btn" data-action="compose">${ICON.chat} Message</button>
-          <button class="btn btn-arrive" data-action="arrive">📍 Bien arrivé</button>
-        </div></div>
-      ${presenceStrip()}
-      ${holidayCountdown()}
-      <div class="dash-grid">
-        <section class="card tint-peach"><div class="card-head"><h2>Aujourd’hui</h2><span class="muted small">${today.length || 'Rien'} prévu${today.length > 1 ? 's' : ''}</span></div>
-          <div class="list">${today.map((ev) => evItem(ev)).join('') || '<div class="empty">Journée libre ☀️</div>'}</div></section>
-        <section class="card tint-butter"><div class="card-head"><h2>À ne pas oublier</h2><button class="btn btn-sm" data-action="nav" data-view="important">Tout voir</button></div>
-          <div class="list">${important.map(noteItem).join('') || '<div class="empty">Rien à signaler.</div>'}</div></section>
-        <section class="card tint-mint"><div class="card-head"><h2>À venir</h2><button class="btn btn-sm" data-action="nav" data-view="agenda">Agenda</button></div>
-          ${upcoming.map((d) => `<div class="day-group"><h3>${d === ymd(addDays(now, 1)) ? 'Demain' : esc(fmtLong(parseYmd(d)))}</h3>
-            <div class="list">${map[d].map((ev) => evItem(ev)).join('')}</div></div>`).join('') || '<div class="empty">Rien dans les 2 prochaines semaines.</div>'}</section>
-        ${pollsDashboardCard()}
-        ${missionsDashboardCard()}
-        ${albumDashboardCard()}
-        ${edtDashboardCard()}
-        <section class="card tint-sky"><div class="card-head"><h2>Ma boîte de réception${unread ? ` <span class="badge" style="margin-left:6px">${unread}</span>` : ''}</h2><button class="btn btn-sm" data-action="nav" data-view="messages">Tout voir</button></div>
-          <div class="list">${myMail.map((m) => mailItem(m, 'in', true)).join('') || '<div class="empty">Aucun message pour vous.</div>'}</div></section>
-      </div>`;
+          <div class="today-label">${esc(dateTxt)}</div></div></div>
+      <nav class="home-tabs" role="tablist">${TABS.map(([id, emo, label, n]) => `<button class="home-tab ${id === tab ? 'on' : ''}" role="tab" aria-selected="${id === tab}" data-action="home-tab" data-tab="${id}">
+        <span class="ht-emo">${emo}</span><span class="ht-label">${label}</span>${n ? `<span class="ht-badge">${n}</span>` : ''}</button>`).join('')}</nav>
+      <div class="home-panel">${panels[tab]()}</div>`;
   },
 
   agenda() {
@@ -1970,6 +1985,7 @@ const ACTIONS = {
   'remove-photo'() { memberPhoto = null; $('#photo-preview').style.backgroundImage = ''; updatePhotoPreview(); },
   compose: () => openCompose(),
   'nav-more': () => openNavMore(),
+  'home-tab'(el) { ls.set('kc-home-tab-' + state.me.id, el.dataset.tab); refresh(); },
   'wish-who'(el) { state.wishWho = el.dataset.id; refresh(); },
   'wish-new'() { openWish(null); },
   'wish-edit'(el) { openWish(state.wishes.find((x) => x.id === el.dataset.id)); },

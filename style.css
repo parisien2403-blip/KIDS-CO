@@ -1043,3 +1043,22 @@ img.avatar{width:42px;height:42px}
 .upd-btn.spin svg{animation:upd-spin .8s linear infinite}
 .upd-btn.has::after{content:'';position:absolute;top:4px;right:4px;width:11px;height:11px;border-radius:50%;background:var(--coral,#f2896b);border:2px solid #fff}
 @keyframes upd-spin{to{transform:rotate(360deg)}}
+/* ===== Accueil en onglets ===== */
+.home-head{margin-bottom:18px}
+.home-tabs{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin:0 0 20px}
+.home-tab{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:92px;padding:12px 6px;border-radius:22px;border:2px solid var(--line);background:var(--surface-strong);color:var(--text);font-weight:800;font-size:15px;cursor:pointer;transition:transform .15s,box-shadow .2s,background .2s}
+.home-tab:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+.home-tab .ht-emo{font-size:34px;line-height:1}
+.home-tab.on{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 10px 22px -10px rgba(34,71,107,.7)}
+.ht-badge{position:absolute;top:8px;right:10px;min-width:24px;height:24px;padding:0 7px;border-radius:999px;background:var(--coral,#f2896b);color:#fff;font-size:13px;font-weight:800;display:grid;place-items:center}
+.home-actions{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 16px}
+.home-actions .btn{padding:14px 22px;font-size:16px}
+.home-panel .presence{margin-top:0}
+@media (max-width:760px){
+  .home-head .clock{font-size:64px}
+  .home-head{margin:0 0 12px}
+  .home-tabs{grid-template-columns:repeat(3,1fr);gap:8px}
+  .home-tab{min-height:84px;font-size:13.5px;border-radius:18px}
+  .home-tab .ht-emo{font-size:30px}
+  .home-actions .btn{flex:1}
+}
