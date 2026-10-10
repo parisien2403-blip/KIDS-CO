@@ -607,6 +607,7 @@ function startAs(m, { quiet = false } = {}) {
     if (!quiet) toast('Mode tablette de la maison activé 🏠');
   }
   loadHolidays(); loadWeather();
+  setTimeout(resetMissionsOnce, 4000);
   if (state.pendingView && NAV.some((n) => n[0] === state.pendingView)) { state.view = state.pendingView; state.pendingView = null; }
   renderShell();
   resetIdle();
@@ -1135,6 +1136,7 @@ const VIEWS = {
           ${tasks.map((task) => `<div class="mg-task">${esc(task)}</div>${days.map((d) => cell(d, task)).join('')}`).join('')}
           <div class="mg-task muted small">Fait</div>${days.map((d) => `<div class="mg-count ${dayDone(d) === tasks.length ? 'full' : ''}">${dayDone(d)}/${tasks.length}</div>`).join('')}
         </div>
+        ${tasks.length ? '' : `<div class="empty" style="margin:10px 0">${parent ? 'Pas encore de missions : touchez « ⚙️ Gérer les missions » pour en choisir.' : 'Pas encore de missions — un parent va les préparer 😉'}</div>`}
         <div class="mission-mobile">
           <div class="edt-daytabs">${days.map((d, i) => `<button class="${i === dayIdx ? 'on' : ''} ${d === t ? 'today' : ''}" data-action="mission-day" data-i="${i}"><b>${WEEKDAYS[i]}</b><span>${dayDone(d) === tasks.length ? '✅' : parseYmd(d).getDate()}</span></button>`).join('')}</div>
           <div class="mission-list">${tasks.map((task) => `<div class="mrow">${cell(days[dayIdx], task)}<span>${esc(task)}</span></div>`).join('')}</div>
@@ -1875,7 +1877,7 @@ function stickerOf(type) {
 const WEEKDAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 const missionKids = () => state.members.filter((m) => m.missions && !isMaison(m));
 const canSeeMissions = () => !!state.me && (!!state.me.missions || ((isParent(state.me) || isMaison(state.me)) && missionKids().length > 0));
-const tasksOf = (m) => (m.missionTasks && m.missionTasks.length ? m.missionTasks : DEFAULT_TASKS);
+const tasksOf = (m) => (Array.isArray(m.missionTasks) ? m.missionTasks : []); // liste vide tant qu'un parent n'en a pas choisi
 const weekKey = (d) => ymd(mondayOf(d));
 const missionId = (mid, wk) => `${mid}_${wk}`;
 const canCheck = (kid) => !!state.me && (state.me.id === kid.id || isParent(state.me) || isMaison(state.me));
@@ -1948,13 +1950,28 @@ function openStickerPicker(kidId, date, packId) {
       <span class="grow"></span><button class="btn" data-action="close-modal-btn">Annuler</button></div>
   </div></div>`;
 }
+// Remise à zéro unique des missions de tous les enfants (v3.7.1, demandée par les parents) : chaque parent repart d'une liste vide.
+function resetMissionsOnce() {
+  if (!state.me || !isParent(state.me) || state.edtConfig?.missionsReset371) return;
+  for (const m of state.members) if (Array.isArray(m.missionTasks) ? m.missionTasks.length : true) save(backend.update('membres', m.id, { missionTasks: [] }));
+  save(backend.set('edtConfig', 'main', { missionsReset371: true }));
+  state.edtConfig = { ...state.edtConfig, missionsReset371: true };
+}
+// Les idées surlignées = celles qui sont vraiment dans la liste au-dessus.
+function syncTaskChips() {
+  const cur = new Set([...document.querySelectorAll('#task-edit input')].map((i) => i.value.trim()));
+  document.querySelectorAll('#missions-form [data-action=add-task][data-text]').forEach((b) => b.classList.toggle('on', cur.has(b.dataset.text)));
+  const e = $('#task-empty'); if (e) e.hidden = cur.size > 0;
+}
 function openManageMissions(kidId) {
   const kid = member(kidId), tasks = tasksOf(kid);
   $('#modal-root').innerHTML = `<div class="modal-backdrop" data-action="close-modal"><form class="modal" id="missions-form" data-id="${esc(kidId)}">
     <h2 style="margin-bottom:6px">Missions de ${esc(kid.name)}</h2>
     <p class="muted small" style="margin:0 0 14px">Les mêmes missions chaque jour. Elles s’appliquent tout de suite.</p>
+    <div class="small muted" id="task-empty" ${tasks.length ? 'hidden' : ''}>Aucune mission pour l’instant : touchez les idées ci-dessous ou « Ajouter une mission ».</div>
     <div class="task-edit" id="task-edit">${tasks.map((x) => `<div class="task-line"><input type="text" value="${esc(x)}" maxlength="60"><button type="button" class="del" data-action="del-task" aria-label="Supprimer">${ICON.trash}</button></div>`).join('')}</div>
-    <button type="button" class="btn btn-sm" data-action="add-task" style="margin:10px 0 14px">${ICON.plus} Ajouter une mission</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 14px"><button type="button" class="btn btn-sm" data-action="add-task">${ICON.plus} Ajouter une mission</button>
+      ${tasks.length ? `<button type="button" class="btn btn-sm btn-danger" data-action="clear-tasks">Tout effacer</button>` : ''}</div>
     <div class="field"><span>Idées (touchez pour ajouter)</span>${TASK_GROUPS.map(([g, l]) => `<div class="idea-group"><b>${g}</b><div class="who">${l.map((x) => `<button type="button" class="who-chip ${tasks.includes(x) ? 'on' : ''}" style="--c:var(--accent)" data-action="add-task" data-text="${esc(x)}">${esc(x)}</button>`).join('')}</div></div>`).join('')}</div>
     <label class="check-line"><input type="checkbox" name="active" checked> 🎯 Missions activées pour ${esc(kid.name)}</label>
     <div class="modal-actions"><span class="grow"></span><button type="button" class="btn" data-action="close-modal-btn">Annuler</button><button class="btn btn-primary">Enregistrer</button></div>
@@ -2313,16 +2330,20 @@ const ACTIONS = {
   'manage-missions'(el) { openManageMissions(el.dataset.id); },
   'add-task'(el) {
     const box = $('#task-edit');
-    if (el.dataset.text && [...box.querySelectorAll('input')].some((i) => i.value.trim() === el.dataset.text)) return toast('Déjà dans la liste 😉');
-    if (el.dataset.text) el.classList.add('on');
+    if (el.dataset.text) { // idée : un toucher ajoute, un 2ᵉ toucher retire
+      const same = [...box.querySelectorAll('input')].filter((i) => i.value.trim() === el.dataset.text);
+      if (same.length) { same.forEach((i) => i.closest('.task-line').remove()); return syncTaskChips(); }
+    }
     const line = document.createElement('div');
     line.className = 'task-line';
     line.innerHTML = `<input type="text" maxlength="60" placeholder="Ex. 🦷 Se brosser les dents"><button type="button" class="del" data-action="del-task" aria-label="Supprimer">${ICON.trash}</button>`;
     box.append(line);
     line.querySelector('input').value = el.dataset.text || '';
     if (!el.dataset.text) line.querySelector('input').focus();
+    syncTaskChips();
   },
-  'del-task'(el) { el.closest('.task-line').remove(); },
+  'del-task'(el) { el.closest('.task-line').remove(); syncTaskChips(); },
+  'clear-tasks'() { $('#task-edit').innerHTML = ''; syncTaskChips(); },
   'new-verif': () => openEventModal(null, todayStr(), { verify: true }),
   'verif-filter'(el) { state.verifFilter = el.dataset.v; refresh(); },
   'verif-done'(el) { setDone(el.dataset.id, el.dataset.occ, { by: state.me.id, at: Date.now() }); toast('✅ Validé — tout le monde le voit'); },
@@ -2546,7 +2567,7 @@ document.addEventListener('submit', async (e) => {
   else if (f.id === 'forgot-form') submitForgot(f);
   else if (f.id === 'missions-form') {
     const tasks = [...new Set([...f.querySelectorAll('#task-edit input')].map((i) => i.value.trim()).filter(Boolean))];
-    save(backend.update('membres', f.dataset.id, { missionTasks: tasks.length ? tasks : DEFAULT_TASKS, missions: f.active.checked }));
+    save(backend.update('membres', f.dataset.id, { missionTasks: tasks, missions: f.active.checked }));
     closeModal(); toast('Missions enregistrées 🎯');
   }
   else if (f.id === 'course-form') submitCourse(f);
@@ -2581,7 +2602,7 @@ document.addEventListener('submit', async (e) => {
   else if (f.id === 'family-form') $('#f-name').blur();
 });
 
-document.addEventListener('input', (e) => { if (e.target.form?.id === 'member-form' && e.target.name === 'name') updatePhotoPreview(); });
+document.addEventListener('input', (e) => { if (e.target.form?.id === 'member-form' && e.target.name === 'name') updatePhotoPreview(); if (e.target.closest?.('#task-edit')) syncTaskChips(); });
 document.addEventListener('keydown', (e) => {
   if (pin && /^[0-9]$/.test(e.key)) { e.preventDefault(); pinKey(e.key); return; }
   if (pin && e.key === 'Backspace') { e.preventDefault(); pinKey('del'); return; }

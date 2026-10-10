@@ -2,6 +2,10 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '3.7.1', date: '2026-10-11', title: '🎯 Missions : listes remises à zéro',
+    items: ['Les missions de tous les enfants sont vidées : chaque parent choisit les siennes', 'Les idées surlignées correspondent exactement à la liste ; un 2ᵉ toucher retire la mission', 'Bouton « Tout effacer » dans la gestion des missions'],
+  },
+  {
     version: '3.7', date: '2026-10-11', title: '✂️ Vos propres thèmes d’autocollants',
     items: ['Créez vos thèmes (« ＋ Nouveau thème ») et ajoutez une photo de planche d’autocollants : l’appli découpe chaque autocollant toute seule',
       'Touchez un cadre pour le garder ou l’enlever, glissez le doigt pour en tracer un à la main (fonds non unis)',
