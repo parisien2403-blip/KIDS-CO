@@ -190,7 +190,7 @@ const save = (p) => Promise.resolve(p).catch((e) => { console.error(e); toast('E
 /* ================= État ================= */
 const state = {
   user: null, me: null, family: null,
-  members: [], events: [], messages: [], notes: [], cours: [], edtNotes: [], edtConfig: {}, absences: [], presence: [], missions: [], push: [], photos: [], polls: [], wishes: [], activity: [],
+  members: [], events: [], messages: [], notes: [], cours: [], edtNotes: [], edtConfig: {}, absences: [], presence: [], missions: [], push: [], photos: [], polls: [], wishes: [], activity: [], stickerImgs: [],
   view: 'accueil',
   month: (() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); })(),
   selected: todayStr(),
@@ -853,6 +853,7 @@ async function enter(user) {
     backend.subscribe('photos', (list) => { state.photos = list.sort((a, b) => b.ts - a.ts); refresh(); }, { limit: 300 }),
     backend.subscribe('polls', onPolls),
     backend.subscribe('activity', (list) => { state.activity = list.sort((a, b) => b.ts - a.ts).slice(0, 80); refresh(); }, { limit: 80 }),
+    backend.subscribe('stickerImgs', (list) => { state.stickerImgs = list.sort((a, b) => a.ts - b.ts); refresh(); }),
     backend.subscribe('wishes', (list) => { state.wishes = list.sort((a, b) => (b.prio ? 1 : 0) - (a.prio ? 1 : 0) || b.ts - a.ts); refresh(); }),
   );
 }
@@ -1105,8 +1106,8 @@ const VIEWS = {
     const sticker = (d, i) => {
       const s = doc.stickers?.[d];
       const rot = ((i * 37) % 30) - 15;
-      return `<button class="sticker-slot ${s ? 'has' : ''} ${d === t ? 'today' : ''}" data-action="sticker-slot" data-kid="${esc(kidId)}" data-date="${d}" title="${s ? esc(STICKER[s.type]?.l || '') + ' — par ' + esc(member(s.by).name) : parent ? 'Coller une étoile' : 'Les parents collent les étoiles'}">
-        <span class="slot-day">${WEEKDAYS[i]}</span>${s ? `<span class="sticker ${freshSticker(kidId, d, s) ? 'fresh' : ''}" style="--r:${rot}deg">${STICKER[s.type]?.e || '⭐'}</span>` : `<span class="slot-empty">${parent ? '＋' : ''}</span>`}</button>`;
+      return `<button class="sticker-slot ${s ? 'has' : ''} ${d === t ? 'today' : ''}" data-action="sticker-slot" data-kid="${esc(kidId)}" data-date="${d}" title="${s ? esc(stickerOf(s.type).l) + ' — par ' + esc(member(s.by).name) : parent ? 'Coller une étoile' : 'Les parents collent les étoiles'}">
+        <span class="slot-day">${WEEKDAYS[i]}</span>${s ? `<span class="sticker ${freshSticker(kidId, d, s) ? 'fresh' : ''}" style="--r:${rot}deg">${stickerOf(s.type).html}</span>` : `<span class="slot-empty">${parent ? '＋' : ''}</span>`}</button>`;
     };
     const cell = (d, task) => {
       const on = (doc.checks?.[d] || []).includes(task), future = d > t;
@@ -1690,10 +1691,60 @@ function onEvents(list) {
 // Chaque enfant « Missions » a une carte par semaine (du lundi au dimanche) : tâches cochées
 // chaque jour et autocollants collés par les parents. Une nouvelle carte vierge chaque lundi.
 const DEFAULT_TASKS = ['🚿 Prendre sa douche', '🛏️ Faire son lit', '🍽️ Débarrasser la table', '🧸 Ranger ses jouets'];
-const TASK_IDEAS = ['🦷 Se brosser les dents', '🎒 Préparer son cartable', '📚 Faire ses devoirs', '🍽️ Mettre la table', '👕 Ranger ses vêtements', '🐶 Nourrir l’animal', '📖 Lire 15 minutes', '🗑️ Sortir la poubelle'];
-const STICKERS = [['star', '⭐', 'Étoile'], ['super', '🌟', 'Super étoile'], ['trophy', '🏆', 'Champion'], ['heart', '💖', 'Bravo'],
-  ['unicorn', '🦄', 'Magique'], ['rocket', '🚀', 'Fusée'], ['crown', '👑', 'Royal'], ['rainbow', '🌈', 'Arc-en-ciel']];
+// Idées de missions rangées par moment de la journée.
+const TASK_GROUPS = [
+  ['🌅 Le matin', ['🦷 Se brosser les dents le matin', '👕 S’habiller tout seul', '🥣 Débarrasser son bol du petit-déj', '🎒 Préparer son cartable', '👟 Mettre ses chaussures et son manteau', '🧴 Se coiffer / se laver le visage']],
+  ['📚 L’école', ['📚 Faire ses devoirs', '📖 Lire 15 minutes', '✏️ Réviser ses leçons', '📝 Faire signer le carnet', '🎒 Vider son cartable en rentrant', '🗂️ Ranger son bureau']],
+  ['🏠 La maison', ['🛏️ Faire son lit', '🧸 Ranger ses jouets', '🍽️ Mettre la table', '🍽️ Débarrasser la table', '👕 Ranger ses vêtements', '🧺 Mettre son linge sale au panier', '🧹 Passer le balai', '🧽 Aider à la vaisselle', '🗑️ Sortir la poubelle', '♻️ Trier les déchets', '🛒 Aider à ranger les courses', '🪴 Arroser les plantes']],
+  ['🐾 Les animaux', ['🐶 Nourrir l’animal', '💧 Changer l’eau de l’animal', '🦮 Promener le chien', '🐱 Nettoyer la litière']],
+  ['🌙 Le soir', ['🚿 Prendre sa douche', '🦷 Se brosser les dents le soir', '🧦 Préparer ses habits pour demain', '📵 Éteindre les écrans à l’heure', '😴 Aller au lit sans râler']],
+  ['💖 Gentillesse', ['🤝 Aider quelqu’un', '😊 Dire bonjour, merci, s’il te plaît', '🫂 Être gentil avec son frère / sa sœur', '🙋 Rendre un service sans qu’on le demande', '📞 Appeler papi / mamie']],
+  ['⚽ Santé & sport', ['🥦 Goûter les légumes', '💧 Boire de l’eau', '🏃 Bouger 30 minutes dehors', '🎵 Travailler son instrument', '🧘 Un moment calme sans écran']],
+];
+const TASK_IDEAS = TASK_GROUPS.flatMap(([, l]) => l);
+// Autocollants par thème (dessins emoji, aucune image protégée). Les parents peuvent ajouter leurs propres images.
+const STICKER_PACKS = [
+  ['classic', '⭐ Classiques', [['star', '⭐', 'Étoile'], ['super', '🌟', 'Super étoile'], ['trophy', '🏆', 'Champion'], ['heart', '💖', 'Bravo'],
+    ['unicorn', '🦄', 'Magique'], ['rocket', '🚀', 'Fusée'], ['crown', '👑', 'Royal'], ['rainbow', '🌈', 'Arc-en-ciel']]],
+  ['heros', '🕷️ Super-héros', [['h-hero', '🦸', 'Super-héros'], ['h-heroine', '🦸‍♀️', 'Super-héroïne'], ['h-spider', '🕷️', 'Araignée'], ['h-web', '🕸️', 'Toile magique'],
+    ['h-boom', '💥', 'Boum !'], ['h-shield', '🛡️', 'Bouclier'], ['h-flash', '⚡', 'Éclair'], ['h-bat', '🦇', 'Héros de la nuit'], ['h-mask', '🥷', 'Ninja'], ['h-robot', '🤖', 'Robot']]],
+  ['kpop', '🎤 K-pop & chasseuses', [['k-mic', '🎤', 'Micro d’or'], ['k-heart', '💜', 'Cœur violet'], ['k-hit', '🎶', 'Tube'], ['k-sparkle', '✨', 'Paillettes'],
+    ['k-sword', '🗡️', 'Épée de lumière'], ['k-demon', '👹', 'Démon vaincu'], ['k-dance', '💃', 'Choré parfaite'], ['k-idol', '🌟', 'Idole'], ['k-lightstick', '🪄', 'Light stick'], ['k-tiger', '🐯', 'Tigre']]],
+  ['magie', '🏰 Princesses & magie', [['m-crown', '👑', 'Couronne'], ['m-castle', '🏰', 'Château'], ['m-fairy', '🧚', 'Fée'], ['m-wand', '🪄', 'Baguette'],
+    ['m-mermaid', '🧜‍♀️', 'Sirène'], ['m-snow', '❄️', 'Flocon magique'], ['m-mouse', '🐭', 'Petite souris'], ['m-lion', '🦁', 'Roi lion'], ['m-dress', '👗', 'Robe de bal'], ['m-genie', '🧞', 'Génie']]],
+  ['dino', '🦖 Dinosaures', [['d-trex', '🦖', 'T-Rex'], ['d-long', '🦕', 'Diplodocus'], ['d-egg', '🥚', 'Œuf de dino'], ['d-volcano', '🌋', 'Volcan'], ['d-bone', '🦴', 'Fossile'], ['d-dragon', '🐉', 'Dragon']]],
+  ['espace', '🚀 Espace', [['e-rocket', '🚀', 'Décollage'], ['e-planet', '🪐', 'Planète'], ['e-alien', '👽', 'Extraterrestre'], ['e-astro', '🧑‍🚀', 'Astronaute'], ['e-ufo', '🛸', 'Soucoupe'], ['e-moon', '🌙', 'Lune'], ['e-comet', '☄️', 'Comète']]],
+  ['sport', '⚽ Sport', [['s-foot', '⚽', 'But !'], ['s-basket', '🏀', 'Panier'], ['s-medal', '🥇', 'Médaille d’or'], ['s-cup', '🏆', 'Coupe'], ['s-bike', '🚴', 'Vélo'], ['s-swim', '🏊', 'Nageur'], ['s-tennis', '🎾', 'Tennis'], ['s-judo', '🥋', 'Ceinture noire']]],
+  ['animaux', '🐾 Animaux', [['a-cat', '🐱', 'Chaton'], ['a-dog', '🐶', 'Toutou'], ['a-panda', '🐼', 'Panda'], ['a-fox', '🦊', 'Renard'], ['a-koala', '🐨', 'Koala'], ['a-dolphin', '🐬', 'Dauphin'], ['a-butterfly', '🦋', 'Papillon'], ['a-owl', '🦉', 'Hibou']]],
+  ['bonbons', '🍭 Gourmandises', [['g-lolly', '🍭', 'Sucette'], ['g-cake', '🧁', 'Cupcake'], ['g-donut', '🍩', 'Donut'], ['g-ice', '🍦', 'Glace'], ['g-cookie', '🍪', 'Cookie'], ['g-pizza', '🍕', 'Pizza party']]],
+];
+const STICKERS = STICKER_PACKS.flatMap(([, , l]) => l);
 const STICKER = Object.fromEntries(STICKERS.map(([k, e, l]) => [k, { e, l }]));
+// Petite image carrée (PNG pour garder la transparence) pour un autocollant personnel.
+function stickerImage(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, 220 / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement('canvas');
+      c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      let out = c.toDataURL('image/png');
+      if (out.length > 150000) out = c.toDataURL('image/jpeg', 0.85);
+      c.width = c.height = 0; URL.revokeObjectURL(url); resolve(out);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Image illisible')); };
+    img.src = url;
+  });
+}
+// Autocollant (thème ou image ajoutée par un parent) : { e: emoji de secours, l: nom, html: affichage }.
+function stickerOf(type) {
+  if (type?.startsWith('img:')) {
+    const im = state.stickerImgs.find((x) => x.id === type.slice(4));
+    return { e: '🎁', l: im?.label || 'Autocollant', html: im ? `<img src="${esc(im.img)}" alt="">` : '🎁' };
+  }
+  const s = STICKER[type] || STICKER.star;
+  return { ...s, html: s.e };
+}
 const WEEKDAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 const missionKids = () => state.members.filter((m) => m.missions && !isMaison(m));
 const canSeeMissions = () => !!state.me && (!!state.me.missions || ((isParent(state.me) || isMaison(state.me)) && missionKids().length > 0));
@@ -1740,17 +1791,25 @@ function setSticker(kidId, date, type) {
   doc.stickers = st;
   writeMission(doc, 'stickers');
   if (type) {
-    confetti([STICKER[type].e]);
-    notify([kidId], { title: `${STICKER[type].e} ${state.me.name} t’a collé « ${STICKER[type].l} » !`, body: 'Va voir ta carte Mission 🎯', tag: 'sticker-' + date, view: 'missions' });
+    const so = stickerOf(type);
+    confetti([so.e]);
+    notify([kidId], { title: `${so.e} ${state.me.name} t’a collé « ${so.l} » !`, body: 'Va voir ta carte Mission 🎯', tag: 'sticker-' + date, view: 'missions' });
   }
 }
-function openStickerPicker(kidId, date) {
+function openStickerPicker(kidId, date, packId) {
   const kid = member(kidId), cur = missionDoc(kidId, weekKey(parseYmd(date))).stickers?.[date];
+  const pack = packId || ls.get('kc-sticker-pack-' + kidId) || 'classic';
+  ls.set('kc-sticker-pack-' + kidId, pack);
+  const list = pack === 'perso' ? state.stickerImgs.map((x) => ['img:' + x.id, `<img src="${esc(x.img)}" alt="">`, x.label || 'Autocollant'])
+    : (STICKER_PACKS.find((p) => p[0] === pack) || STICKER_PACKS[0])[2];
   $('#modal-root').innerHTML = `<div class="modal-backdrop" data-action="close-modal"><div class="modal sticker-modal">
     <div class="eyebrow">${esc(cap(parseYmd(date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })))}</div>
     <h2>Un autocollant pour ${esc(kid.name)} ?</h2>
-    <div class="sticker-pick">${STICKERS.map(([k, e, l], i) => `<button class="sticker-opt ${cur?.type === k ? 'on' : ''}" data-action="pick-sticker" data-kid="${esc(kidId)}" data-date="${date}" data-type="${k}">
-      <span class="sticker" style="--r:${((i * 37) % 30) - 15}deg">${e}</span><small>${l}</small></button>`).join('')}</div>
+    <div class="pack-tabs">${[...STICKER_PACKS.map(([id, label]) => [id, label]), ['perso', '📷 Mes autocollants']].map(([id, label]) => `<button class="pack-tab ${id === pack ? 'on' : ''}" data-action="sticker-pack" data-pack="${id}" data-kid="${esc(kidId)}" data-date="${date}">${label}</button>`).join('')}</div>
+    <div class="sticker-pick">${list.map(([k, e, l], i) => `<button class="sticker-opt ${cur?.type === k ? 'on' : ''}" data-action="pick-sticker" data-kid="${esc(kidId)}" data-date="${date}" data-type="${esc(k)}">
+      <span class="sticker" style="--r:${((i * 37) % 30) - 15}deg">${e}</span><small>${esc(l)}</small>${k.startsWith('img:') ? `<span class="own-del" data-action="sticker-img-del" data-id="${esc(k.slice(4))}" data-kid="${esc(kidId)}" data-date="${date}" title="Supprimer">✕</span>` : ''}</button>`).join('')}
+      ${pack === 'perso' ? `<label class="sticker-opt add-own"><span class="sticker">＋</span><small>Ajouter une image</small><input type="file" class="sticker-upload" accept="image/*" multiple hidden data-kid="${esc(kidId)}" data-date="${date}"></label>` : ''}</div>
+    ${pack === 'perso' ? '<p class="small muted" style="margin:8px 0 0">Ajoutez vos propres images (le héros ou les personnages préférés de vos enfants). Elles restent privées dans votre famille. Le ✕ supprime une image.</p>' : ''}
     <div class="modal-actions">${cur ? `<button class="btn btn-danger" data-action="pick-sticker" data-kid="${esc(kidId)}" data-date="${date}" data-type="">Retirer l’autocollant</button>` : ''}
       <span class="grow"></span><button class="btn" data-action="close-modal-btn">Annuler</button></div>
   </div></div>`;
@@ -1762,7 +1821,7 @@ function openManageMissions(kidId) {
     <p class="muted small" style="margin:0 0 14px">Les mêmes missions chaque jour. Elles s’appliquent tout de suite.</p>
     <div class="task-edit" id="task-edit">${tasks.map((x) => `<div class="task-line"><input type="text" value="${esc(x)}" maxlength="60"><button type="button" class="del" data-action="del-task" aria-label="Supprimer">${ICON.trash}</button></div>`).join('')}</div>
     <button type="button" class="btn btn-sm" data-action="add-task" style="margin:10px 0 14px">${ICON.plus} Ajouter une mission</button>
-    <div class="field"><span>Idées</span><div class="who">${TASK_IDEAS.map((x) => `<button type="button" class="who-chip" style="--c:var(--accent)" data-action="add-task" data-text="${esc(x)}">${esc(x)}</button>`).join('')}</div></div>
+    <div class="field"><span>Idées (touchez pour ajouter)</span>${TASK_GROUPS.map(([g, l]) => `<div class="idea-group"><b>${g}</b><div class="who">${l.map((x) => `<button type="button" class="who-chip ${tasks.includes(x) ? 'on' : ''}" style="--c:var(--accent)" data-action="add-task" data-text="${esc(x)}">${esc(x)}</button>`).join('')}</div></div>`).join('')}</div>
     <label class="check-line"><input type="checkbox" name="active" checked> 🎯 Missions activées pour ${esc(kid.name)}</label>
     <div class="modal-actions"><span class="grow"></span><button type="button" class="btn" data-action="close-modal-btn">Annuler</button><button class="btn btn-primary">Enregistrer</button></div>
   </form></div>`;
@@ -1799,8 +1858,9 @@ function onMissions(list) {
   if (stickersBefore && state.me) {
     for (const [k, st] of now) if (!stickersBefore.has(k) && k.startsWith(state.me.id + '|') && st.by !== state.me.id) {
       const date = k.split('|')[1];
-      confetti([STICKER[st.type]?.e || '⭐']);
-      toast(`${STICKER[st.type]?.e || '⭐'} ${member(st.by).name} t’a collé « ${STICKER[st.type]?.l || 'Étoile'} » pour ${parseYmd(date).toLocaleDateString('fr-FR', { weekday: 'long' })} !`);
+      const so = stickerOf(st.type);
+      confetti([so.e]);
+      toast(`${so.e} ${member(st.by).name} t’a collé « ${so.l} » pour ${parseYmd(date).toLocaleDateString('fr-FR', { weekday: 'long' })} !`);
     }
   }
   stickersBefore = now;
@@ -2105,10 +2165,19 @@ const ACTIONS = {
     if (!isParent(state.me)) return toast('Seuls les parents peuvent coller les autocollants ⭐');
     openStickerPicker(el.dataset.kid, el.dataset.date);
   },
+  'sticker-img-del'(el) {
+    if (!confirm('Supprimer cet autocollant de la collection ?')) return;
+    save(backend.remove('stickerImgs', el.dataset.id));
+    openStickerPicker(el.dataset.kid, el.dataset.date, 'perso');
+  },
+  'sticker-pack'(el) { openStickerPicker(el.dataset.kid, el.dataset.date, el.dataset.pack); },
   'pick-sticker'(el) { closeModal(); setSticker(el.dataset.kid, el.dataset.date, el.dataset.type); },
   'manage-missions'(el) { openManageMissions(el.dataset.id); },
   'add-task'(el) {
-    const box = $('#task-edit'), line = document.createElement('div');
+    const box = $('#task-edit');
+    if (el.dataset.text && [...box.querySelectorAll('input')].some((i) => i.value.trim() === el.dataset.text)) return toast('Déjà dans la liste 😉');
+    if (el.dataset.text) el.classList.add('on');
+    const line = document.createElement('div');
     line.className = 'task-line';
     line.innerHTML = `<input type="text" maxlength="60" placeholder="Ex. 🦷 Se brosser les dents"><button type="button" class="del" data-action="del-task" aria-label="Supprimer">${ICON.trash}</button>`;
     box.append(line);
@@ -2274,6 +2343,17 @@ document.addEventListener('change', async (e) => {
     t.value = '';
     f.__busy = addAttachments(files, f.__att, f.dataset.single ? 1 : 4, () => renderAttach(f)).finally(() => { f.__busy = null; });
     return;
+  }
+  if (t.classList.contains('sticker-upload') && t.files?.length) {
+    const files = [...t.files].slice(0, 12), { kid, date } = t.dataset;
+    for (const file of files) {
+      try {
+        const im = await stickerImage(file);
+        const label = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').slice(0, 24) || 'Autocollant';
+        await save(backend.add('stickerImgs', { img: im, label, by: state.me.id, ts: Date.now() })); // la liste se met à jour par l'abonnement
+      } catch { toast('Image illisible', true); }
+    }
+    toast('🎨 Autocollant ajouté'); openStickerPicker(kid, date, 'perso'); return;
   }
   if (t.classList.contains('note-att-input') && t.files?.length) {
     state.noteAtt = state.noteAtt || [];

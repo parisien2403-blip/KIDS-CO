@@ -1129,3 +1129,17 @@ img.avatar{width:42px;height:42px}
 .wx-tip span:first-child{font-size:20px;line-height:1.1}
 :root[data-theme=dark] .wx-h,:root[data-theme=dark] .wx-advice{background:rgba(255,255,255,.06)}
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]) .wx-h,:root:not([data-theme=light]) .wx-advice{background:rgba(255,255,255,.06)}}
+/* ===== Autocollants à thème ===== */
+.pack-tabs{display:flex;gap:6px;overflow-x:auto;padding:4px 0 10px;margin:6px 0 4px;scrollbar-width:thin}
+.pack-tab{flex:0 0 auto;border:2px solid var(--line);background:var(--surface-strong);border-radius:999px;padding:7px 12px;font-weight:800;font-size:13px;color:var(--text2);cursor:pointer;white-space:nowrap}
+.pack-tab.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.sticker-opt{position:relative}
+.sticker-opt small{text-align:center;line-height:1.15}
+.sticker img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.sticker-opt.add-own{cursor:pointer;border:2px dashed var(--line)}
+.own-del{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:11px;display:grid;place-items:center}
+.sticker-modal .sticker-pick{max-height:min(52vh,420px);overflow-y:auto}
+.idea-group{margin:8px 0}
+.idea-group b{display:block;font-size:13px;margin-bottom:6px;color:var(--text2)}
+.idea-group .who-chip.on{background:var(--accent);color:#fff}
+@media (max-width:480px){.sticker-pick{grid-template-columns:repeat(3,1fr)}}

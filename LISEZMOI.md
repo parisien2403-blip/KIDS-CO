@@ -126,3 +126,8 @@ Ensuite, sur chaque appareil : *Réglages → Notifications → Activer* (sur iP
 - Dans l'onglet **☀️ Aujourd'hui** de l'accueil : température et ressenti, pluie heure par heure (en %), vent, UV, lever et coucher du soleil.
 - **Conseils** selon le temps : K-way et bottes de pluie, bonnet et gants, casquette et crème solaire, verglas, vent fort, brouillard, orage…
 - Après 19 h, ce sont la météo et les conseils **de demain**. Ville réglable avec 📍 (Libourne par défaut, pour toute la famille). Données : Open-Meteo (gratuit).
+
+### 🎯 Plus de missions et 🎨 autocollants à thème
+- Dans *Missions → modifier*, plus de 40 idées rangées par moment (matin, école, maison, animaux, soir, gentillesse, santé & sport) : un toucher pour ajouter.
+- En collant un autocollant, choisissez un **thème** : classiques, super-héros, K-pop & chasseuses de démons, princesses & magie, dinosaures, espace, sport, animaux, gourmandises. L'appli retient le thème préféré de chaque enfant.
+- **📷 Mes autocollants** : ajoutez vos propres images (personnage préféré, photo…). Elles restent privées dans la famille ; ✕ pour en supprimer une.
