@@ -2,6 +2,12 @@
 // À chaque mise à jour : ajouter une entrée EN HAUT de CHANGELOG et mettre version.json au même numéro.
 export const CHANGELOG = [
   {
+    version: '3.5', date: '2026-10-11', title: '🌦️ Météo du jour avec conseils',
+    items: ['Onglet « Aujourd’hui » : météo précise (température, ressenti, pluie heure par heure, vent, UV, lever/coucher du soleil)',
+      'Conseils selon le temps : K-way et bottes s’il pleut, bonnet et gants s’il fait froid, casquette et crème solaire au soleil, verglas, vent, brouillard…',
+      'Après 19 h, la météo et les conseils de demain ; ville réglable avec 📍 (Libourne par défaut)'],
+  },
+  {
     version: '3.4.1', date: '2026-10-11', title: '🔒 Verrouillage par code uniquement',
     items: ['L’ouverture par empreinte / Face ID est retirée : on déverrouille avec son code secret'],
   },

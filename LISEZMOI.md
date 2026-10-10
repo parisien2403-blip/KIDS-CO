@@ -121,3 +121,8 @@ Ensuite, sur chaque appareil : *Réglages → Notifications → Activer* (sur iP
 - Un rendez-vous **ordinaire** ajouté, modifié ou supprimé **n'envoie plus de notification**. Seuls les rendez-vous **Important** ou **Urgent** (et les notes 🔴 urgentes) sonnent encore (et toujours les messages).
 - À l'ouverture, un bandeau vert **« Du nouveau dans le calendrier »** apparaît sur l'accueil : le toucher ouvre la liste des derniers changements (ajouté / modifié / supprimé, par qui, quand) ; la croix ✕ le ferme. Aussi dans l'Agenda : bouton **🆕 Derniers ajouts**.
 - Réservé aux parents et aux enfants de 12 ans et plus. Les pastilles vertes signalent ce qui est nouveau.
+
+### 🌦️ Météo du jour
+- Dans l'onglet **☀️ Aujourd'hui** de l'accueil : température et ressenti, pluie heure par heure (en %), vent, UV, lever et coucher du soleil.
+- **Conseils** selon le temps : K-way et bottes de pluie, bonnet et gants, casquette et crème solaire, verglas, vent fort, brouillard, orage…
+- Après 19 h, ce sont la météo et les conseils **de demain**. Ville réglable avec 📍 (Libourne par défaut, pour toute la famille). Données : Open-Meteo (gratuit).

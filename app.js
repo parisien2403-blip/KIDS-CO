@@ -606,7 +606,7 @@ function startAs(m, { quiet = false } = {}) {
     ls.set('maison-tablet', '1'); applyTablet();
     if (!quiet) toast('Mode tablette de la maison activé 🏠');
   }
-  loadHolidays();
+  loadHolidays(); loadWeather();
   if (state.pendingView && NAV.some((n) => n[0] === state.pendingView)) { state.view = state.pendingView; state.pendingView = null; }
   renderShell();
   resetIdle();
@@ -1013,6 +1013,7 @@ const VIEWS = {
           <div class="list">${myMail.map((m) => mailItem(m, 'in', true)).join('') || '<div class="empty">Aucun message pour vous.</div>'}</div></section>`;
     const panels = {
       jour: () => `${holidayCountdown()}
+        ${weatherCard()}
         ${young ? '' : `<div class="home-actions"><button class="btn btn-primary" data-action="new-event" data-date="${t}">${ICON.plus} Rendez-vous</button></div>`}
         <div class="dash-grid">
           <section class="card tint-peach"><div class="card-head"><h2>Aujourd’hui</h2><span class="muted small">${today.length || 'Rien'} prévu${today.length > 1 ? 's' : ''}</span></div>
@@ -2014,6 +2015,10 @@ const ACTIONS = {
     save(backend.update('wishes', w.id, { reservedBy: mine ? null : state.me.id, reservedAt: mine ? null : Date.now() }));
     toast(mine ? 'Réservation annulée' : `🎁 Réservé ! ${member(w.owner).name} ne le verra pas 🤫`);
   },
+  'meteo-place'() { openWeatherPlace(); },
+  'meteo-refresh'() { loadWeather(true); },
+  'meteo-geo'() { weatherFromGeo(); },
+  'meteo-pick'(el) { setWeatherPlace({ name: el.dataset.name, lat: Number(el.dataset.lat), lon: Number(el.dataset.lon) }); },
   'zone-set'(el) { save(backend.set('edtConfig', 'main', { zone: el.dataset.z })); state.edtConfig.zone = el.dataset.z; holidays = null; loadHolidays(); refresh(); },
   'box-polls'() { state.box = 'polls'; go('messages'); },
   'nav-from-more'(el) { closeModal(); go(el.dataset.view); },
@@ -2318,6 +2323,7 @@ document.addEventListener('submit', async (e) => {
   else if (f.id === 'compose-form') submitCompose(f);
   else if (f.id === 'arrive-form') submitArrive(f);
   else if (f.id === 'wish-form') submitWish(f);
+  else if (f.id === 'meteo-form') searchWeatherPlace(f);
   else if (f.id === 'poll-form') submitPoll(f);
   else if (f.id === 'caption-form') { const id = f.dataset.id, c = f.caption.value.trim(); save(backend.update('photos', id, { caption: c })); toast('Légende enregistrée'); }
   else if (f.id === 'forgot-form') submitForgot(f);
@@ -2632,6 +2638,134 @@ async function downloadQr() {
   g.fillText('Scannez pour ouvrir l’appli', 400, 880);
   const a = document.createElement('a');
   a.href = c.toDataURL('image/png'); a.download = 'kids-and-co-qr.png'; a.click();
+}
+
+/* ================= 🌦️ Météo du jour (Open-Meteo, gratuit, sans clé) ================= */
+// Lieu commun à toute la famille (réglable), Libourne par défaut. Prévisions heure par heure + conseils d'habillage.
+const WEATHER_DEFAULT = { name: 'Libourne', lat: 44.915, lon: -0.243 };
+const weatherPlace = () => (state.edtConfig?.weather?.lat ? state.edtConfig.weather : WEATHER_DEFAULT);
+const WMO = {
+  0: ['☀️', 'Grand soleil'], 1: ['🌤️', 'Plutôt ensoleillé'], 2: ['⛅', 'Éclaircies'], 3: ['☁️', 'Couvert'],
+  45: ['🌫️', 'Brouillard'], 48: ['🌫️', 'Brouillard givrant'],
+  51: ['🌦️', 'Bruine légère'], 53: ['🌦️', 'Bruine'], 55: ['🌧️', 'Forte bruine'], 56: ['🌧️', 'Bruine verglaçante'], 57: ['🌧️', 'Bruine verglaçante'],
+  61: ['🌦️', 'Petite pluie'], 63: ['🌧️', 'Pluie'], 65: ['🌧️', 'Forte pluie'], 66: ['🌧️', 'Pluie verglaçante'], 67: ['🌧️', 'Pluie verglaçante'],
+  71: ['🌨️', 'Un peu de neige'], 73: ['🌨️', 'Neige'], 75: ['❄️', 'Forte neige'], 77: ['🌨️', 'Grésil'],
+  80: ['🌦️', 'Averses'], 81: ['🌧️', 'Averses'], 82: ['⛈️', 'Fortes averses'], 85: ['🌨️', 'Averses de neige'], 86: ['❄️', 'Fortes averses de neige'],
+  95: ['⛈️', 'Orage'], 96: ['⛈️', 'Orage avec grêle'], 99: ['⛈️', 'Gros orage avec grêle'],
+};
+const wmo = (c, night) => { const w = WMO[c] || ['🌡️', 'Météo']; return night && c <= 1 ? ['🌙', c ? 'Nuit plutôt dégagée' : 'Nuit claire'] : w; };
+let weather = null, weatherLoading = false;
+async function loadWeather(force = false) {
+  const pl = weatherPlace(), key = `kc-weather:${pl.lat.toFixed(2)},${pl.lon.toFixed(2)}`;
+  if (!force) { try { const c = JSON.parse(ls.get(key)); if (c && Date.now() - c.at < 30 * 60000) { weather = c; refresh(); return; } if (c) weather = c; } catch {} }
+  if (weatherLoading) return;
+  weatherLoading = true; if (force) toast('🌦️ Mise à jour de la météo…');
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${pl.lat}&longitude=${pl.lon}`
+      + '&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,wind_gusts_10m,precipitation,relative_humidity_2m,is_day'
+      + '&hourly=temperature_2m,apparent_temperature,precipitation_probability,precipitation,weather_code,wind_gusts_10m,is_day'
+      + '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,uv_index_max,sunrise,sunset,wind_gusts_10m_max'
+      + '&timezone=Europe%2FParis&forecast_days=2';
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    weather = { at: Date.now(), place: pl.name, data: await r.json() };
+    ls.set(key, JSON.stringify(weather));
+  } catch (e) { console.warn('Météo indisponible', e); if (force) toast('Météo indisponible pour le moment', true); }
+  weatherLoading = false; refresh();
+}
+setInterval(() => { if (!document.hidden) loadWeather(); }, 30 * 60000);
+
+// Conseils pratiques selon le temps de la journée (7 h – 20 h).
+function weatherAdvice(h, d, i) {
+  const out = [], rainP = Math.max(...h.map((x) => x.p)), rainMm = h.reduce((t, x) => t + x.mm, 0);
+  const codes = h.map((x) => x.code), tMin = Math.min(...h.map((x) => x.feel)), tMax = Math.max(...h.map((x) => x.t));
+  const gust = Math.max(...h.map((x) => x.gust)), uv = d.uv_index_max?.[i] || 0;
+  const rainHours = h.filter((x) => x.p >= 50 || x.mm >= 0.3).map((x) => x.hour);
+  const when = rainHours.length ? (rainHours.length >= h.length - 2 ? 'toute la journée' : `vers ${rainHours[0]} h${rainHours.length > 1 ? `–${rainHours[rainHours.length - 1] + 1} h` : ''}`) : '';
+  if (codes.some((c) => c >= 95)) out.push(['⛈️', `Orage possible ${when || 'dans la journée'} : rester à l’abri, éviter le vélo et les sorties en forêt.`]);
+  if (codes.some((c) => [71, 73, 75, 77, 85, 86].includes(c))) out.push(['🧤', 'Neige : bottes chaudes, bonnet, gants et écharpe. Prudence sur la route !']);
+  else if (rainMm >= 5 || rainP >= 70) out.push(['🥾', `Pluie ${when} : K-way ou manteau imperméable, bottes de pluie${gust >= 45 ? ' (trop de vent pour un parapluie)' : ' et parapluie'}.`]);
+  else if (rainP >= 40 || rainMm >= 0.5) out.push(['☂️', `Risque d’averses ${when} : prendre un K-way${gust >= 45 ? '' : ' ou un petit parapluie'} dans le sac.`]);
+  if (codes.some((c) => [56, 57, 66, 67, 48].includes(c)) || tMin <= 0) out.push(['🧊', 'Risque de verglas : attention en marchant et en voiture, partir un peu plus tôt.']);
+  if (tMin <= 3) out.push(['🧣', `Très froid le matin (ressenti ${Math.round(tMin)}°) : gros manteau, bonnet, gants et écharpe.`]);
+  else if (tMin <= 8) out.push(['🧥', `Frais le matin (ressenti ${Math.round(tMin)}°) : manteau chaud et un pull.`]);
+  else if (tMin <= 13 && tMax >= 19) out.push(['👕', `Frais le matin, ${Math.round(tMax)}° l’après-midi : s’habiller en couches (pull qu’on peut enlever).`]);
+  else if (tMin <= 14) out.push(['🧶', 'Prévoir un gilet ou un sweat.']);
+  if (tMax >= 30) out.push(['🥵', `Forte chaleur (${Math.round(tMax)}°) : gourde d’eau, casquette, vêtements légers, rester à l’ombre aux heures chaudes.`]);
+  else if (tMax >= 25) out.push(['🧢', `Il va faire chaud (${Math.round(tMax)}°) : casquette et gourde d’eau.`]);
+  if (uv >= 6) out.push(['🧴', `Soleil fort (UV ${Math.round(uv)}) : crème solaire, lunettes de soleil et casquette.`]);
+  else if (uv >= 4 && rainP < 40) out.push(['😎', `UV ${Math.round(uv)} : un peu de crème solaire si on reste dehors.`]);
+  if (gust >= 70) out.push(['💨', `Vent très fort (rafales ${Math.round(gust)} km/h) : attention aux branches, pas de parapluie, rentrer le linge et le mobilier de jardin.`]);
+  else if (gust >= 45) out.push(['🌬️', `Vent (rafales ${Math.round(gust)} km/h) : un coupe-vent ou un K-way bien fermé.`]);
+  if (codes.some((c) => c === 45 || c === 48)) out.push(['🌫️', 'Brouillard le matin : allumer les phares, gilet ou vêtements clairs pour aller à l’école.']);
+  if (!out.length) out.push(['😊', 'Temps agréable, rien de spécial à prévoir. Bonne journée !']);
+  return out;
+}
+
+function weatherCard() {
+  const pl = weatherPlace();
+  const head = (extra = '') => `<div class="card-head"><h2>🌦️ Météo · ${esc(pl.name)}</h2><span class="wx-btns">${extra}
+      <button class="btn btn-sm" data-action="meteo-place" title="Changer de ville">📍</button></span></div>`;
+  if (weather && weather.place !== pl.name && !weatherLoading) setTimeout(() => loadWeather(), 0); // lieu changé sur un autre appareil
+  const D = weather?.data;
+  if (!D?.hourly) return `<section class="card tint-sky wx-card">${head()}<div class="empty">${weatherLoading ? 'Chargement de la météo…' : 'Météo indisponible (pas de connexion ?)'}
+    <button class="btn btn-sm" data-action="meteo-refresh">Réessayer</button></div></section>`;
+  const now = new Date(), H = D.hourly, nowH = now.getHours();
+  const late = nowH >= 19, i = late ? 1 : 0, day = ymd(addDays(now, i)); // après 19 h : la journée de demain
+  const rows = H.time.map((t, k) => ({ time: t, day: t.slice(0, 10), hour: Number(t.slice(11, 13)), t: H.temperature_2m[k], feel: H.apparent_temperature[k],
+    p: H.precipitation_probability?.[k] ?? 0, mm: H.precipitation[k] || 0, code: H.weather_code[k], gust: H.wind_gusts_10m[k] || 0, night: H.is_day?.[k] === 0 }));
+  const dayRows = rows.filter((r) => r.day === day && r.hour >= 7 && r.hour <= 20);
+  const strip = rows.filter((r) => (late ? r.day === day : r.time >= ymd(now) + 'T' + pad(nowH))).filter((r) => r.hour >= 6 && r.hour <= 22).slice(0, 16)
+    .filter((r, k) => late ? [7, 8, 10, 12, 14, 16, 17, 19].includes(r.hour) : k % 2 === 0).slice(0, 8);
+  const C = D.current || {}, d = D.daily, [cIco, cTxt] = wmo(C.weather_code, C.is_day === 0), [dIco, dTxt] = wmo(d.weather_code[i]);
+  const advice = weatherAdvice(dayRows.length ? dayRows : rows.slice(0, 12), d, i);
+  const hm = (iso) => iso ? iso.slice(11, 16).replace(':', ' h ') : '';
+  return `<section class="card tint-sky wx-card">${head(`<button class="btn btn-sm" data-action="meteo-refresh" title="Actualiser">↻</button>`)}
+    <div class="wx-now">
+      ${late ? `<div class="wx-big">${dIco}</div><div><div class="wx-temp">${Math.round(d.temperature_2m_min[i])}° / ${Math.round(d.temperature_2m_max[i])}°</div><div class="wx-label"><b>Demain</b> · ${esc(dTxt)}</div>
+        <div class="small muted">Pluie ${d.precipitation_probability_max[i] ?? 0} % · ${(d.precipitation_sum[i] || 0).toFixed(1).replace('.', ',')} mm · rafales ${Math.round(d.wind_gusts_10m_max[i] || 0)} km/h</div></div>`
+      : `<div class="wx-big">${cIco}</div><div><div class="wx-temp">${Math.round(C.temperature_2m)}°<span class="wx-feel">ressenti ${Math.round(C.apparent_temperature)}°</span></div>
+        <div class="wx-label">${esc(cTxt)} · min ${Math.round(d.temperature_2m_min[0])}° / max ${Math.round(d.temperature_2m_max[0])}°</div>
+        <div class="small muted">Pluie ${d.precipitation_probability_max[0] ?? 0} % (${(d.precipitation_sum[0] || 0).toFixed(1).replace('.', ',')} mm) · vent ${Math.round(C.wind_speed_10m)} km/h, rafales ${Math.round(C.wind_gusts_10m)} · humidité ${C.relative_humidity_2m} % · UV max ${Math.round(d.uv_index_max[0] || 0)}</div></div>`}
+    </div>
+    <div class="wx-hours">${strip.map((r) => { const [ico] = wmo(r.code, r.night); return `<div class="wx-h"><span class="wx-hh">${r.hour} h</span><span class="wx-hi">${ico}</span><b>${Math.round(r.t)}°</b>
+      <span class="wx-p ${r.p >= 50 ? 'hi' : ''}">💧${r.p} %</span></div>`; }).join('')}</div>
+    <div class="wx-advice"><div class="wx-adv-title">${late ? '👕 Pour demain' : '👕 Conseils du jour'}</div>${advice.map(([e, t]) => `<div class="wx-tip"><span>${e}</span><span>${esc(t)}</span></div>`).join('')}</div>
+    <div class="wx-foot small muted">☀️ Lever ${hm(d.sunrise[i])} · 🌇 coucher ${hm(d.sunset[i])} · mis à jour ${esc(ago(weather.at))} · Open-Meteo</div>
+  </section>`;
+}
+function openWeatherPlace() {
+  $('#modal-root').innerHTML = `<div class="modal-backdrop" data-action="close-modal"><form class="modal" id="meteo-form">
+    <h2 style="margin-bottom:12px">📍 Ville pour la météo</h2>
+    <p class="small muted" style="margin:0 0 10px">Actuellement : <b>${esc(weatherPlace().name)}</b>. Le choix vaut pour toute la famille.</p>
+    <div class="row"><input type="text" name="q" placeholder="Ex. Libourne, Bordeaux…" required style="flex:1"><button class="btn btn-primary">Chercher</button></div>
+    <div id="meteo-results" class="list" style="margin-top:10px"></div>
+    <div class="modal-actions"><button type="button" class="btn" data-action="meteo-geo">📡 Ma position actuelle</button><span class="grow"></span>
+      <button type="button" class="btn" data-action="close-modal-btn">Fermer</button></div>
+  </form></div>`;
+  setTimeout(() => $('#meteo-form [name=q]')?.focus(), 50);
+}
+async function searchWeatherPlace(f) {
+  const box = $('#meteo-results'); box.innerHTML = '<div class="empty">Recherche…</div>';
+  try {
+    const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(f.q.value.trim())}&count=6&language=fr`);
+    const { results = [] } = await r.json();
+    box.innerHTML = results.map((x) => `<button type="button" class="news-item" data-action="meteo-pick" data-name="${esc(x.name)}" data-lat="${x.latitude}" data-lon="${x.longitude}">
+      <span class="ni-ico">📍</span><span class="ni-body"><b>${esc(x.name)}</b><small>${esc([x.postcodes?.[0], x.admin2 || x.admin1, x.country].filter(Boolean).join(' · '))}</small></span></button>`).join('')
+      || '<div class="empty">Aucune ville trouvée.</div>';
+  } catch { box.innerHTML = '<div class="empty">Recherche impossible (pas de connexion ?).</div>'; }
+}
+function setWeatherPlace(pl) {
+  save(backend.set('edtConfig', 'main', { weather: pl }));
+  state.edtConfig = { ...state.edtConfig, weather: pl };
+  closeModal(); toast(`🌦️ Météo de ${pl.name}`); weather = null; loadWeather(true);
+}
+function weatherFromGeo() {
+  if (!navigator.geolocation) return toast('Position indisponible sur cet appareil', true);
+  navigator.geolocation.getCurrentPosition(async (p) => {
+    const lat = Math.round(p.coords.latitude * 100) / 100, lon = Math.round(p.coords.longitude * 100) / 100;
+    setWeatherPlace({ name: 'Ma position', lat, lon });
+  }, () => toast('Position refusée — cherchez la ville à la place', true), { timeout: 10000 });
 }
 
 /* ================= 🆕 Du nouveau dans le calendrier ================= */
